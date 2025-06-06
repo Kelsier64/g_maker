@@ -1,32 +1,21 @@
-from download import download_mp3_from_youtube
-import os,sys
-from openai import AzureOpenAI
-from dotenv import load_dotenv
-import requests
 import yt_dlp
-load_dotenv()
-API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
-RESOURCE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+import os
+import sys
 
+def download_mp3_from_youtube(url, output_path="./sound.mp3", output_to_stdout=False):
+    """
+    Downloads audio from a YouTube URL as an MP3 file.
 
-def gpt4o_transcribe(path):
-
-    url = f"{RESOURCE_ENDPOINT}/openai/deployments/gpt-4o-transcribe/audio/transcriptions?api-version=2025-03-01-preview"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-    }
-    files = {
-        "file": open(path, "rb"),
-    }
-    data = {
-        "model": "gpt-4o-transcribe",
-    }
-    response = requests.post(url, headers=headers, files=files, data=data)
-    response.raise_for_status()
-    response.json()
-    return response["text"]
-
-def download_yt_mp3(url, output_path="./sound.mp3"):
+    Args:
+        url (str): The YouTube video URL.
+        output_path (str): The path where to save the MP3 file.
+        output_to_stdout (bool): Whether to output binary data to stdout instead of saving to file.
+    """
+    if output_to_stdout:
+        # For stdout output, we'll use a temporary file
+        temp_path = os.path.join(os.path.dirname(__file__), "temp_audio")
+        output_path = f"{temp_path}.mp3"
+        
     # Create the output directory if it doesn't exist
     output_dir = os.path.dirname(output_path)
     if output_dir and not os.path.exists(output_dir):
@@ -55,22 +44,15 @@ def download_yt_mp3(url, output_path="./sound.mp3"):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-
-
-def main(url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"):
-    # Example YouTube URL
-
-    
-    # Download the audio as an MP3 file
-    if not os.path.exists("sound.mp3"):
-        download_yt_mp3(url)
-    
-    text = gpt4o_transcribe("sound.mp3")
-    print(text)
-
 if __name__ == "__main__":
+    # Check if a URL was provided as a command-line argument
     if len(sys.argv) > 1:
-        url = sys.argv[1]
-        main(url)
+        video_url = sys.argv[1]
+        download_mp3_from_youtube(video_url)
     else:
-        main()
+        # Original behavior when no arguments are provided
+        video_url = input("Enter the YouTube video URL: ")
+        if video_url:
+            download_mp3_from_youtube(video_url)
+        else:
+            print("No URL provided.")
