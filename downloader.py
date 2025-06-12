@@ -2,20 +2,8 @@ import yt_dlp
 import os
 import sys
 
-def download_mp3_from_youtube(url, output_path="./sound.mp3", output_to_stdout=False):
-    """
-    Downloads audio from a YouTube URL as an MP3 file.
+def download_mp3_from_youtube(url, output_path="./sound.mp3"):
 
-    Args:
-        url (str): The YouTube video URL.
-        output_path (str): The path where to save the MP3 file.
-        output_to_stdout (bool): Whether to output binary data to stdout instead of saving to file.
-    """
-    if output_to_stdout:
-        # For stdout output, we'll use a temporary file
-        temp_path = os.path.join(os.path.dirname(__file__), "temp_audio")
-        output_path = f"{temp_path}.mp3"
-        
     # Create the output directory if it doesn't exist
     output_dir = os.path.dirname(output_path)
     if output_dir and not os.path.exists(output_dir):

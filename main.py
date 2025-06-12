@@ -1,69 +1,81 @@
-from download import download_mp3_from_youtube
 import os,sys
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 import requests
 import yt_dlp
+import json
+from pydantic import BaseModel
 load_dotenv()
-API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
-RESOURCE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 
-text = """
-從前有一位名叫阿傑的年輕工程師，他對修理電子產品特別有一套。有一天，他在跳蚤市場上買到了一台老舊的烤麵包機，樣子古怪、又重又髒，標價只要10元。他想著：「拆開來看看也不虧。」
+GPT4O_API_KEY = "2096af94eab44b0bb910def970ad467c"
+GPT4O_OPENAI_ENDPOINT = "https://hsh2024.openai.azure.com"
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
-回家後，他擦乾淨機身，插上電源，一按下按鈕，竟然聽到「喀啦」一聲——不是機器聲，而是一個低沉的聲音說：
+VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
 
-「終於有人喚醒我了…」
 
-阿傑：「欸？誰在說話？」
+# cotent bg_video bgm 
 
-烤麵包機：「我。是我。你面前的烤麵包機。」
 
-阿傑以為自己幻聽，直到那台烤麵包機開始自我介紹，聲音像是英國老紳士。
+test_script = """
+Hey, did you know the Great Pyramid of Giza was the tallest structure on Earth for over 3,800 years? Built without modern machines—just manpower, math, and mystery. Let’s dive in!
 
-烤麵包機：「我是阿爾弗雷德，前任皇家御廚的智能助手。被流放到這個跳蚤市場已經15年了。」
+The Pyramids of Egypt—especially the Great Pyramid—are one of the Seven Wonders of the Ancient World. Built over 4,500 years ago during the reign of Pharaoh Khufu, this massive stone structure originally stood 146 meters tall. That's roughly a 45-story building!
 
-阿傑好奇地問：「你會做什麼？」
+It's made from over 2 million limestone and granite blocks. Each block can weigh up to 80 tons. And here's the wild part: we still don't fully understand how they moved and stacked them so precisely.
 
-阿爾弗雷德：「我能分析你的心情，推薦適合的吐司厚度和果醬比例。還能講笑話。你要聽個嗎？」
+So how’d they build it? There are a few theories:
 
-阿傑笑著點頭。
+First, the Ramp Theory—maybe they used long ramps made of mudbrick and limestone.
+Second, the Spiral Theory—some think ramps spiraled around the pyramid as it rose.
+And third, the Internal Spiral Theory—a newer idea that suggests a hidden inner ramp helped workers build it from the inside out.
 
-阿爾弗雷德：「為什麼吐司從來不參加馬拉松？因為他總是在起跑線上就焦了！」
+Still no solid proof for any of them, which makes it even more fascinating.
 
-阿傑差點笑到吐司掉地上。從此，他和阿爾弗雷德每天早上都聊天、吃早餐、討論人生哲理。幾個月後，阿傑把這台會說話的烤麵包機拍成影片放到網路上，結果爆紅。
+In 2017, scientists discovered a mysterious hidden void inside the Great Pyramid using cosmic ray technology. No one knows what’s in it… yet.
 
-但有一天，阿爾弗雷德突然說：
+Also, the alignment of the pyramid is insanely accurate. It’s almost perfectly aligned with true North, South, East, and West—with less than 0.05 degrees of error. Try doing that without GPS.
 
-「阿傑，我的任務完成了。我的真正使命，是幫助你開啟人生的味蕾。」
+Quick facts:
 
-說完，他自動斷電，永遠沉睡。
+The pyramid was originally covered in polished white limestone that reflected the sun like a mirror.
 
-阿傑很難過，但他決定創業，開了一家早餐店，名字叫：
+The builders weren’t slaves—they were skilled laborers, well-fed and respected.
 
-「阿爾弗雷德的吐司」。
+Some believe the pyramid's proportions match the Golden Ratio. Coincidence… or design?
 
-店裡每天都播著阿爾弗雷德留下的語音錄音——「記得把生活烤得恰到好處。」
+Whether it’s math, mystery, or just pure human genius, the pyramids remain one of the greatest achievements in history.
+
+If you learned something new, hit like and follow for more history in under 3 minutes!
+
 """
 
-def gpt4o_transcribe(path):
+client = AzureOpenAI(
+    api_key=AZURE_OPENAI_API_KEY,
+    azure_endpoint=AZURE_OPENAI_ENDPOINT,
+    api_version="2025-03-01-preview",
+)
 
-    url = f"{RESOURCE_ENDPOINT}/openai/deployments/gpt-4o-transcribe/audio/transcriptions?api-version=2025-03-01-preview"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-    }
-    files = {
-        "file": open(path, "rb"),
-    }
-    data = {
-        "model": "gpt-4o-transcribe",
-    }
-    response = requests.post(url, headers=headers, files=files, data=data)
-    response.raise_for_status()
-    result = response.json()
-    return result["text"]
+gpt4o_client = AzureOpenAI(
+    api_key=GPT4O_API_KEY,
+    azure_endpoint=GPT4O_OPENAI_ENDPOINT,
+    api_version="2025-03-01-preview",
+)
 
-def download_yt_mp3(url, output_path="./sound.mp3"):
+
+def download_yt(url, format_type="mp3"):
+    """
+    Download YouTube video as mp3 or mp4
+    
+    Args:
+        url: YouTube URL
+        format_type: "mp3" or "mp4"
+    """
+    # Define fixed output paths based on format type
+    output_path = "./sound.mp3" if format_type == "mp3" else "./video.mp4"
+    
     # Create the output directory if it doesn't exist
     output_dir = os.path.dirname(output_path)
     if output_dir and not os.path.exists(output_dir):
@@ -72,39 +84,141 @@ def download_yt_mp3(url, output_path="./sound.mp3"):
     # Extract filename without extension
     filename = os.path.splitext(os.path.basename(output_path))[0]
     
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',  # Standard quality
-        }],
-        'outtmpl': output_path.replace('.mp3', ''),  # yt-dlp will add .mp3 extension automatically
-        'keepvideo': False,  # True if you want to keep the downloaded video
-        'noplaylist': True,  # Download only the video, not playlist if URL is part of one
-        'quiet': True, # Suppress console output from yt-dlp
-        # 'no_warnings': True, # Suppress warnings
-    }
+    if format_type == "mp3":
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',  # Standard quality
+            }],
+            'outtmpl': filename,  # yt-dlp will add extension automatically
+            'keepvideo': False,
+            'noplaylist': True,
+            'quiet': True,
+        }
+    else:  # mp4
+        ydl_opts = {
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'outtmpl': filename,
+            'noplaylist': True,
+            'quiet': True,
+        }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
+        return output_path
     except Exception as e:
         print(f"An error occurred: {e}")
+        return None
 
+def whisper(path):
 
+    transcribe = client.audio.transcriptions.create(
+        file=open(path, "rb"),
+        model="whisper",
+        response_format="verbose_json",
+        timestamp_granularities=["segment"],
+    )
+    return transcribe
 
-def main(url):
-    download_yt_mp3(url)
+def tts(text,output_path="./output.mp3"):
+    # ElevenLabs API endpoint
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}?output_format=mp3_44100_128"
+    # Get API key from environment
+    api_key = ELEVENLABS_API_KEY
     
-    text = gpt4o_transcribe("sound.mp3")
-    print(text)
+    # Headers for the request
+    headers = {
+        "Xi-Api-Key": api_key,
+        "Content-Type": "application/json"
+    }
+    
+    # Data payload
+    data = {
+        "text": text,
+        "model_id": "eleven_multilingual_v2"
+    }
+    
+    try:
+        # Make the API request
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()  # Raise exception for HTTP errors
+        
+        # Create output directory if it doesn't exist
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            
+        # Save the audio file
+        with open(output_path, "wb") as f:
+            f.write(response.content)
+        
+        return output_path
+    except requests.exceptions.RequestException as e:
+        print(f"Error in TTS API request: {e}")
+        return None
+        
+def gpt4o_request(messages,text_format=None):
+    try:
+        if text_format is not None:
+            response = gpt4o_client.responses.parse(
+            model="gpt4o",
+            input=messages,
+            text_format=text_format,
+            )
+            return response.output_parsed
+        else:
+            response = gpt4o_client.responses.parse(
+            model="gpt4o",
+            input=messages,
+            )
+            return response.output_text
+    except Exception as e:
+        print(f"Error in GPT-4O request: {e}")
+        return "error"
+
+
+test_config = {
+    "content_url": "https://youtu.be/dQw4w9WgXcQ",
+    "bgv_url": "https://youtu.be/dQw4w9WgXcQ",
+    "bgm_url": "https://youtu.be/dQw4w9WgXcQ"
+}
+
+
+def main(url="https://youtu.be/dQw4w9WgXcQ"):
+    # download_yt(url)
+    # ref_text = whisper("sound.mp3")
+    # ref_text = ref_text.text
+    # print(ref_text)
+    # writer_prompt = [{"role":"system","content":"rewrite the reference text as a spoken script for a youtube video,only output the script dont say other thing"},{"role":"user","content":ref_text}]
+    # script = gpt4o_request(writer_prompt)
+    # print(script)  
+    script = test_script
+
+    # tts(script)
+    script_timestamps = whisper("output.mp3")
+    script_timestamps = script_timestamps.segments
+
+    script_for_ai = []
+    for segment in script_timestamps:
+        script_for_ai.append({
+            "start": round(segment.start,1),
+            "end": round(segment.end,1),
+            "text": segment.text.strip()
+        })
+    print(script_for_ai)
+    
+
+
+    # tts("Hello, this is a test.")
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        # url = sys.argv[1]
-        # main(url)
-        print(text)
+        url = sys.argv[1]
+        main(url)
         
     else:
         main()
