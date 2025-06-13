@@ -98,8 +98,19 @@ def gpt4o_request(messages,text_format=None):
 # text = whisper("sound.mp3")
 # print(text)
 
+prompt = """
+Given the following transcript data, generate a list of detailed video generation prompts.
+- Only generate a prompt when there is a significant scene or visual change needed, not for every line.
+- Each prompt should be a dictionary with keys: 'prompt', 'start_time', and 'seconds'.
+- 'prompt': a vivid, specific description of the video scene that matches the text and context.
+- 'start_time': when the scene should start (in seconds).
+- 'seconds': the duration of the scene (in seconds).
+Ensure the prompts are well-aligned with the transcript timings and content, and only create prompts at appropriate moments where a new visual is needed.
+"""
+
+
 msg =[
-    {"role": "system", "content": "generate some video generating prompts for the following text, each prompt should be a dictionary with keys: 'prompt', 'start_time', and 'seconds'. The 'prompt' should be a detailed description of the video you want to generate, 'start_time' is the start time in seconds, and 'seconds' is the duration in seconds."},
+    {"role": "system", "content": prompt},
     {"role": "user","content": data.__str__()}
 ]
 response = gpt4o_request(msg,PromptList)

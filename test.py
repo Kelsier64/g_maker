@@ -1,1 +1,64 @@
-data=[{'start': 0.0, 'end': 2.6, 'text': 'Hey, did you know the Great Pyramid of Giza'}, {'start': 2.6, 'end': 7.0, 'text': 'was the tallest structure on Earth for over 3,800 years,'}, {'start': 7.0, 'end': 12.2, 'text': 'built without modern machines, just manpower, math and mystery?'}, {'start': 12.2, 'end': 13.4, 'text': "Let's dive in."}, {'start': 13.4, 'end': 16.4, 'text': 'The pyramids of Egypt, especially the Great Pyramid,'}, {'start': 16.4, 'end': 19.5, 'text': 'are one of the seven wonders of the ancient world.'}, {'start': 19.5, 'end': 24.0, 'text': 'Built over 4,500 years ago during the reign of Pharaoh Khufu,'}, {'start': 24.0, 'end': 29.4, 'text': 'this massive stone structure originally stood 146 meters tall.'}, {'start': 29.4, 'end': 31.9, 'text': "That's roughly a 45-story building."}, {'start': 31.9, 'end': 35.5, 'text': "It's made from over 2 million limestone and granite blocks."}, {'start': 35.5, 'end': 38.3, 'text': 'Each block can weigh up to 80 tons.'}, {'start': 38.3, 'end': 40.0, 'text': "And here's the wild part."}, {'start': 40.0, 'end': 44.5, 'text': "We still don't fully understand how they moved and stacked them so precisely."}, {'start': 44.5, 'end': 46.4, 'text': "So how'd they build it?"}, {'start': 46.4, 'end': 47.8, 'text': 'There are a few theories.'}, {'start': 47.8, 'end': 49.6, 'text': 'First, the ramp theory.'}, {'start': 49.6, 'end': 53.4, 'text': 'Maybe they used long ramps made of mud brick and limestone.'}, {'start': 53.4, 'end': 55.4, 'text': 'Second, the spiral theory.'}, {'start': 55.4, 'end': 59.0, 'text': 'Some think ramps spiraled around the pyramid as it rose.'}, {'start': 59.0, 'end': 61.6, 'text': 'And third, the internal spiral theory.'}, {'start': 61.6, 'end': 64.3, 'text': 'A newer idea that suggests a hidden inner ramp'}, {'start': 64.3, 'end': 67.2, 'text': 'helped workers build it from the inside out.'}, {'start': 67.2, 'end': 72.0, 'text': 'Still no solid proof for any of them, which makes it even more fascinating.'}, {'start': 72.0, 'end': 76.1, 'text': 'In 2017, scientists discovered a mysterious hidden void'}, {'start': 76.1, 'end': 79.9, 'text': 'inside the Great Pyramid using cosmic ray technology.'}, {'start': 79.9, 'end': 81.8, 'text': "No one knows what's in it."}, {'start': 81.8, 'end': 83.2, 'text': 'Yet.'}, {'start': 83.2, 'end': 86.4, 'text': 'Also, the alignment of the pyramid is insanely accurate.'}, {'start': 86.5, 'end': 91.0, 'text': "It's almost perfectly aligned with true north, south, east, and west."}, {'start': 91.0, 'end': 94.1, 'text': 'With less than 0.05 degrees of error.'}, {'start': 94.1, 'end': 96.5, 'text': 'Try doing that without GPS.'}, {'start': 96.5, 'end': 97.6, 'text': 'Quick facts.'}, {'start': 97.6, 'end': 100.7, 'text': 'The pyramid was originally covered in polished white limestone'}, {'start': 100.7, 'end': 103.1, 'text': 'that reflected the sun like a mirror.'}, {'start': 103.1, 'end': 104.7, 'text': "The builders weren't slaves."}, {'start': 104.7, 'end': 108.3, 'text': 'They were skilled laborers, well-fed and respected.'}, {'start': 108.3, 'end': 112.3, 'text': "Some believe the pyramid's proportions match the golden ratio."}, {'start': 112.3, 'end': 114.7, 'text': 'Coincidence or design?'}, {'start': 114.7, 'end': 117.9, 'text': "Whether it's math, mystery, or just pure human genius,"}, {'start': 117.9, 'end': 121.6, 'text': 'the pyramids remain one of the greatest achievements in history.'}, {'start': 121.6, 'end': 123.1, 'text': 'If you learned something new,'}, {'start': 123.1, 'end': 126.2, 'text': 'hit like and follow for more history in under three minutes.'}]
+import requests
+import base64 
+import os
+from dotenv import load_dotenv
+import time
+# Set environment variables or edit the corresponding values here.
+load_dotenv()
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+
+def generate_video(prompt, width=480, height=480, n_seconds=5, output_path="output.mp4"):
+    api_version = 'preview'
+    headers = {
+        "api-key": AZURE_OPENAI_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    # 1. Create a video generation job
+    create_url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/video/generations/jobs?api-version={api_version}"
+    body = {
+        "prompt": prompt,
+        "width": width,
+        "height": height,
+        "n_seconds": n_seconds,
+        "model": "sora"
+    }
+    response = requests.post(create_url, headers=headers, json=body)
+    response.raise_for_status()
+    job_id = response.json()["id"]
+    print(f"Job created: {job_id}")
+
+    # 2. Poll for job status
+    status_url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/video/generations/jobs/{job_id}?api-version={api_version}"
+    status = None
+    while status not in ("succeeded", "failed", "cancelled"):
+        time.sleep(5)
+        status_response = requests.get(status_url, headers=headers).json()
+        status = status_response.get("status")
+        print(f"Job status: {status}")
+
+    # 3. Retrieve generated video 
+    if status == "succeeded":
+        generations = status_response.get("generations", [])
+        if generations:
+            print(f"✅ Video generation succeeded.")
+            generation_id = generations[0].get("id")
+            video_url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/video/generations/{generation_id}/content/video?api-version={api_version}"
+            video_response = requests.get(video_url, headers=headers)
+            if video_response.ok:
+                # Ensure output directory exists
+                os.makedirs(os.path.dirname(output_path), exist_ok=True) if os.path.dirname(output_path) else None
+                with open(output_path, "wb") as file:
+                    file.write(video_response.content)
+                print(f'Generated video saved as "{output_path}"')
+                return output_path
+            else:
+                raise Exception("Failed to download video content.")
+        else:
+            raise Exception("No generations found in job result.")
+    else:
+        raise Exception(f"Job didn't succeed. Status: {status}")
+
+# Example usage:
+generate_video("")
