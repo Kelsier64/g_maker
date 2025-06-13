@@ -7,8 +7,6 @@ import json
 from pydantic import BaseModel
 import time
 import asyncio
-import httpx  # Replaces 'requests'
-import aiofiles # For async file writing
 load_dotenv()
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -20,13 +18,13 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
 
 
-prompt4generate_prompt = """
+generate_prompt = """
 Given the following transcript data, generate a list of detailed video generation prompts.
 - Only generate a prompt when there is a significant scene or visual change needed, not for every line.
 - Each prompt should be a dictionary with keys: 'prompt', 'start_time', and 'seconds'.
 - 'prompt': a vivid, specific description of the video scene that matches the text and context.
 - 'start_time': when the scene should start (in seconds).
-- 'seconds': the duration of the scene (in seconds), and must not exceed 5 seconds for any prompt.
+- 'seconds': the duration of the scene (in seconds).
 Ensure the prompts are well-aligned with the transcript timings and content, and only create prompts at appropriate moments where a new visual is needed.
 """
 
@@ -216,26 +214,14 @@ def gpt4o_request(messages,text_format=None):
         print(f"Error in GPT-4O request: {e}")
         return "error"
 
-async def generate_video(
-    client: httpx.AsyncClient,  # Pass the client to reuse connections
-    prompt: str,
-    width: int = 1920,
-    height: int = 1080,
-    n_seconds: int = 5,
-    output_path: str = "output.mp4"
-):
-    """
-    Generates a video based on a prompt using the Azure OpenAI Sora API.
-    This function is fully asynchronous.
-    """
+def generate_video(prompt, width=1920, height=1080, n_seconds=5, output_path="video/output.mp4"):
     api_version = 'preview'
     headers = {
         "api-key": AZURE_OPENAI_API_KEY,
         "Content-Type": "application/json"
     }
-    print(f"[{prompt[:20]}...] Starting job...")
 
-    # 1. Create a video generation job (asynchronous)
+    # 1. Create a video generation job
     create_url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/video/generations/jobs?api-version={api_version}"
     body = {
         "prompt": prompt,
@@ -244,56 +230,46 @@ async def generate_video(
         "n_seconds": n_seconds,
         "model": "sora"
     }
-    # Use 'await' with the async client
-    response = await client.post(create_url, headers=headers, json=body)
+    response = requests.post(create_url, headers=headers, json=body)
     response.raise_for_status()
     job_id = response.json()["id"]
-    print(f"[{prompt[:20]}...] Job created: {job_id}")
+    print(f"Job created: {job_id}")
 
-    # 2. Poll for job status (asynchronous)
+    # 2. Poll for job status
     status_url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/video/generations/jobs/{job_id}?api-version={api_version}"
     status = None
     while status not in ("succeeded", "failed", "cancelled"):
-        # Use 'asyncio.sleep' instead of 'time.sleep'
-        await asyncio.sleep(5)
-        status_response = await client.get(status_url, headers=headers)
-        status_response.raise_for_status()
-        status_data = status_response.json()
-        status = status_data.get("status")
-        print(f"[{prompt[:20]}...] Job status: {status}")
+        time.sleep(5)
+        status_response = requests.get(status_url, headers=headers).json()
+        status = status_response.get("status")
+        print(f"Job status: {status}")
 
-    # 3. Retrieve generated video (asynchronous)
+    # 3. Retrieve generated video 
     if status == "succeeded":
-        generations = status_data.get("generations", [])
+        generations = status_response.get("generations", [])
         if generations:
-            print(f"✅ [{prompt[:20]}...] Video generation succeeded.")
+            print(f"✅ Video generation succeeded.")
             generation_id = generations[0].get("id")
             video_url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/video/generations/{generation_id}/content/video?api-version={api_version}"
-            
-            # Use the async client to download the video content
-            video_response = await client.get(video_url, headers=headers)
-            video_response.raise_for_status()
-            
-            # Ensure output directory exists
-            output_dir = os.path.dirname(output_path)
-            if output_dir:
-                os.makedirs(output_dir, exist_ok=True)
-                
-            # Use aiofiles to write the file asynchronously
-            async with aiofiles.open(output_path, "wb") as file:
-                await file.write(video_response.content)
-                
-            print(f'✅ [{prompt[:20]}...] Generated video saved as "{output_path}"')
-            return output_path
+            video_response = requests.get(video_url, headers=headers)
+            if video_response.ok:
+                # Ensure output directory exists
+                os.makedirs(os.path.dirname(output_path), exist_ok=True) if os.path.dirname(output_path) else None
+                with open(output_path, "wb") as file:
+                    file.write(video_response.content)
+                print(f'Generated video saved as "{output_path}"')
+                return output_path
+            else:
+                raise Exception("Failed to download video content.")
         else:
-            raise Exception(f"[{prompt[:20]}...] No generations found in job result.")
+            raise Exception("No generations found in job result.")
     else:
-        raise Exception(f"[{prompt[:20]}...] Job failed. Status: {status}")
+        raise Exception(f"Job didn't succeed. Status: {status}")
 
 
 
 
-async def main(url=""):
+def main(url):
     # download_yt(url)
     # ref_text = whisper("sound.mp3")
     # ref_text = ref_text.text
@@ -317,8 +293,7 @@ async def main(url=""):
     print(script_for_ai)
 
     msg =[
-        {"role": "system", "content": prompt4generate_prompt},
-        {"role": "system", "content": "dont generate more than 3 video prompts"},
+        {"role": "system", "content": generate_prompt},
         {"role": "user","content": script_for_ai.__str__()}
     ]
     
@@ -329,37 +304,25 @@ async def main(url=""):
     for i in prompt4video.prompts:
         print(f"Prompt: {i.prompt}, Start Time: {i.start_time}, Duration: {i.seconds} seconds")
 
-    async with httpx.AsyncClient(timeout=None) as client:
-        # Create a list of tasks (coroutines) to run
-        tasks = []
-        for i in prompt4video.prompts:
-            # Create a task for each video generation
-            task = generate_video(
-                client,
-                prompt=i.prompt,
-                width=1920,
-                height=1080,
-                n_seconds=i.seconds,
-                output_path=f"./output/{i.start_time}_{i.seconds}.mp4"
-            )
-            tasks.append(task)
-            video_list.append(Video(video_path=f"./output/{i.start_time}_{i.seconds}.mp4", start_time=i.start_time, seconds=i.seconds))
+    for i in prompt4video.prompts:
+        video_path = generate_video(
+            prompt=i.prompt,
+            n_seconds=i.seconds,
+            output_path=f"video/{i.start_time}_{i.seconds}.mp4"
+        )
 
-        # asyncio.gather runs all tasks concurrently and waits for them all to finish
-        print("--- Starting all video generation tasks concurrently ---")
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        print("\n--- All tasks have completed ---")
-
-        # Process the results
-        for result in results:
-            if isinstance(result, Exception):
-                print(f"A task failed: {result}")
-            else:
-                print(f"Successfully completed: {result}")
+        video_list.append(Video(
+            video_path=video_path,
+            start_time=i.start_time,
+            seconds=i.seconds
+        ))
 
 
-    print(video_list)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    if len(sys.argv) > 1:
+        url = sys.argv[1]
+        main(url)
         
+    else:
+        main()
