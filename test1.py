@@ -1,4 +1,5 @@
 import os,sys
+import requests
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -98,7 +99,7 @@ def gpt4o_request(messages,text_format=None):
 # text = whisper("sound.mp3")
 # print(text)
 
-prompt = """
+video_generating_prompt = """
 Given the following transcript data, generate a list of detailed video generation prompts.
 - Only generate a prompt when there is a significant scene or visual change needed, not for every line.
 - Each prompt should be a dictionary with keys: 'prompt', 'start_time', and 'seconds'.
@@ -110,7 +111,7 @@ Ensure the prompts are well-aligned with the transcript timings and content, and
 
 
 msg =[
-    {"role": "system", "content": prompt},
+    {"role": "system", "content": video_generating_prompt},
     {"role": "user","content": data.__str__()}
 ]
 response = gpt4o_request(msg,PromptList)
