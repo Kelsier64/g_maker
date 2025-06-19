@@ -32,47 +32,16 @@ Given the following transcript data, generate a list of detailed image generatio
 Ensure the prompts are well-aligned with the transcript timings and content, and only create prompts at appropriate moments where a new visual is needed.
 """
 
-test_script = """
-Hey, did you know the Great Pyramid of Giza was the tallest structure on Earth for over 3,800 years? Built without modern machines—just manpower, math, and mystery. Let’s dive in!
-
-The Pyramids of Egypt—especially the Great Pyramid—are one of the Seven Wonders of the Ancient World. Built over 4,500 years ago during the reign of Pharaoh Khufu, this massive stone structure originally stood 146 meters tall. That's roughly a 45-story building!
-
-It's made from over 2 million limestone and granite blocks. Each block can weigh up to 80 tons. And here's the wild part: we still don't fully understand how they moved and stacked them so precisely.
-
-So how’d they build it? There are a few theories:
-
-First, the Ramp Theory—maybe they used long ramps made of mudbrick and limestone.
-Second, the Spiral Theory—some think ramps spiraled around the pyramid as it rose.
-And third, the Internal Spiral Theory—a newer idea that suggests a hidden inner ramp helped workers build it from the inside out.
-
-Still no solid proof for any of them, which makes it even more fascinating.
-
-In 2017, scientists discovered a mysterious hidden void inside the Great Pyramid using cosmic ray technology. No one knows what’s in it… yet.
-
-Also, the alignment of the pyramid is insanely accurate. It’s almost perfectly aligned with true North, South, East, and West—with less than 0.05 degrees of error. Try doing that without GPS.
-
-Quick facts:
-
-The pyramid was originally covered in polished white limestone that reflected the sun like a mirror.
-
-The builders weren’t slaves—they were skilled laborers, well-fed and respected.
-
-Some believe the pyramid's proportions match the Golden Ratio. Coincidence… or design?
-
-Whether it’s math, mystery, or just pure human genius, the pyramids remain one of the greatest achievements in history.
-
-If you learned something new, hit like and follow for more history in under 3 minutes!
+sv_prompt = """
+Please break down the following content into several short video scripts for speaking. 
+Each script should be suitable for short-form video (e.g. TikTok, YouTube Shorts).
+- up to 180 seconds a short video.
+- You can also output just one script if it is in time.
+- Each script should be a dictionary with keys: 'script' and 'tittle'.
+- 'script': the content of the script.
+- 'tittle': a short video type tittle.
 
 """
-
-test_config = {
-    "content_url": "https://youtu.be/dQw4w9WgXcQ",
-    "bgv_url": "https://youtu.be/dQw4w9WgXcQ",
-    "bgm_url": "https://youtu.be/dQw4w9WgXcQ"
-}
-
-
-
 class Prompt(BaseModel):
     prompt: str
     start_time: float
@@ -84,7 +53,14 @@ class Image(BaseModel):
     path: str
     start_time: float
 
-    
+class Script(BaseModel):
+    tittle:str
+    script:str
+
+class ScriptList(BaseModel):
+    scripts:list[Script]
+
+
 
 client = AzureOpenAI(
     api_key=AZURE_OPENAI_API_KEY,
@@ -325,23 +301,12 @@ def burn_subtitle(video_path, srt_path, output_path):
     os.remove(srt_path)
     print(f"Subtitles burned into video and saved as {output_path}")
 
+def make_video(script,output_path="video/final_video.mp4"):
+    print("Generating audio from script...")
+    sound_path = "sound.mp3"
+    tts(script,output_path=sound_path)
 
-
-def main():
-    url = input("Enter the ref YouTube URL: ")
-    download_yt(url,output_path="refv_sound.mp3")
-    ref_text = whisper("refv_sound.mp3")
-    os.remove("refv_sound.mp3")
-    ref_text = ref_text.text
-    print(ref_text)
-
-    writer_msg = [{"role":"system","content":"rewrite the reference text as a spoken script for a youtube video,only output the script dont say other thing"},{"role":"user","content":ref_text}]
-    script = gpt4o_request(writer_msg)
-    print(script)
-
-    tts(script,output_path="sound.mp3")
-
-    script_timestamps = whisper("sound.mp3")
+    script_timestamps = whisper(sound_path)
     total_duration = script_timestamps.duration
     script_timestamps = script_timestamps.segments
 
@@ -374,7 +339,9 @@ def main():
             start_time=i.start_time
         ))
 
-    combine_images(image_list, "output.mp3", "images.mp4", total_duration)
+    print("Combining images into video...")
+    combine_images(image_list, sound_path, "images.mp4", total_duration)
+    print("Burning subtitles into video...")
     burn_subtitle("images.mp4", "script_timestamps.srt", "final_video.mp4")
     # Remove all files in ./image directory
     
@@ -384,6 +351,36 @@ def main():
             if os.path.isfile(file_path):
                 os.remove(file_path)
 
+    os.remove(sound_path)
 
+def main():
+    url = input("Enter the ref YouTube URL: ")
+
+    print(f"Downloading reference video from {url}...")
+    download_yt(url,output_path="refv_sound.mp3")
+
+    print("Transcribing reference video...")
+    ref_text = whisper("refv_sound.mp3")
+    os.remove("refv_sound.mp3")
+    ref_text = ref_text.text
+    print(ref_text)
+
+    writer_msg = [{"role":"system","content":"rewrite the reference text as a spoken script for a youtube video in english,only output the script dont say other thing"},{"role":"user","content":ref_text}]
+    
+    print("Generating script...")
+    script = gpt4o_request(writer_msg)
+    print(script)
+
+    sv_writer_msg = [{"role":"system","content":sv_prompt},{"role":"user","content":script}]
+    
+    sv_scripts = gpt4o_request(sv_writer_msg,ScriptList)
+    for index,i in enumerate(sv_scripts.scripts):
+        print(f"Tittle: {i.tittle}, Script: {i.script}")
+        make_video(i.script,output_path=f"video/final_video_{index}.mp4")
+
+    print("All done!")
+
+
+    
 if __name__ == "__main__":
     main()
