@@ -33,7 +33,7 @@ Given the following transcript data, generate a list of detailed image generatio
 - Only generate a prompt when there is a significant scene or visual change needed, not for every line.
 - Each prompt should be a dictionary with keys: 'prompt', 'start_time', and 'seconds'.
 - 'prompt': a vivid, specific description of the image scene that matches the text and context.
-- 'start_time': when the scene should start (in seconds) ,the first image should be 0.0.
+- 'start_time': when the scene should start (in seconds) ,the first image MUST be 0.0.
 - dont write any words on the image, just describe the scene.
 Ensure the prompts are well-aligned with the transcript timings and content, and only create prompts at appropriate moments where a new visual is needed.
 """
@@ -349,10 +349,13 @@ def combine_images(image_list: list[Image], audio_file, output_file, total_durat
                 if duration <= 0:
                     duration = 0.1
             f.write(f"duration {duration}\n")
+        # Repeat the last image to ensure ffmpeg holds it for the last duration
+
+        f.write(f"file '{image_list[-1].path}'\n")
 
     cmd = [
         "ffmpeg",
-        "-f", "concat",
+        "-f","concat",
         "-safe", "0",
         "-i", "ffmpeg_input.txt",
         "-i", audio_file,
@@ -404,8 +407,10 @@ def make_video(script,output_path="video/final_video.mp4"):
         {"role": "system", "content": prompt4generate_prompt  },
         {"role": "user","content": script_for_ai.__str__()}
     ]
-    prompt4image = gpt4o_request(msg,PromptList)
+    prompt4image = o3_request(msg,PromptList)
+
     image_list:list[Image] = []
+
     for i in prompt4image.prompts:
         print(f"Prompt: {i.prompt}, Start Time: {i.start_time}")
     for i in prompt4image.prompts:
@@ -466,7 +471,7 @@ def main():
     for index,i in enumerate(sv_scripts.scripts):
         print(f"Tittle: {i.tittle}, Script: {i.script}")
         make_video(i.script,output_path=f"video/final_video_{index}.mp4")
-
+        
     print("All done!")
 
 
