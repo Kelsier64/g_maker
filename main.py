@@ -9,6 +9,11 @@ import time
 import base64
 import subprocess
 import argparse
+import tempfile
+from pydub import AudioSegment
+import warnings
+
+warnings.filterwarnings("ignore", category=SyntaxWarning)
 load_dotenv()
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -28,18 +33,31 @@ Given the following transcript data, generate a list of detailed image generatio
 - Only generate a prompt when there is a significant scene or visual change needed, not for every line.
 - Each prompt should be a dictionary with keys: 'prompt', 'start_time', and 'seconds'.
 - 'prompt': a vivid, specific description of the image scene that matches the text and context.
-- 'start_time': when the scene should start (in seconds) ,the first one should be 0.0.
+- 'start_time': when the scene should start (in seconds) ,the first image should be 0.0.
+- dont write any words on the image, just describe the scene.
 Ensure the prompts are well-aligned with the transcript timings and content, and only create prompts at appropriate moments where a new visual is needed.
 """
 
 sv_prompt = """
 Please break down the following content into several short video scripts for speaking. 
 Each script should be suitable for short-form video (e.g. TikTok, YouTube Shorts).
-- up to 180 seconds a short video.
-- You can also output just one script if it is in time.
+- 60-180 seconds per script.
+- You can also output only one script if it is in time(180s).
 - Each script should be a dictionary with keys: 'script' and 'tittle'.
 - 'script': the content of the script.
 - 'tittle': a short video type tittle.
+
+"""
+
+content_prompt = """
+You are a video script cleaning assistant. Your task is to refine a transcript by preserving the main content while removing unnecessary parts in english. Please do the following:
+- output in english.
+- Remove introductory and closing greetings, such as “Hi everyone” or “Thanks for watching.”
+- Remove channel promotions, like “Remember to like and subscribe.”
+- Remove unrelated small talk or off-topic banter.
+- Keep the original wording and tone as much as possible, with minor edits for clarity.
+- Output a cleaned and concise version of the script that still feels authentic and natural.
+Return only the cleaned script, no additional commentary.
 
 """
 class Prompt(BaseModel):
@@ -127,14 +145,57 @@ def download_yt(url,output_path,format_type="mp3"):
         return None
 
 def whisper(path):
+    """
+    Transcribe audio using Azure OpenAI Whisper, handling large files by splitting if necessary.
+    """
+    max_size_mb = 24  # Azure OpenAI Whisper limit is 24MB per file
+    file_size_mb = os.path.getsize(path) / (1024 * 1024)
 
-    transcribe = client.audio.transcriptions.create(
-        file=open(path, "rb"),
-        model="whisper",
-        response_format="verbose_json",
-        timestamp_granularities=["segment"],
-    )
-    return transcribe
+    if file_size_mb <= max_size_mb:
+        transcribe = client.audio.transcriptions.create(
+            file=open(path, "rb"),
+            model="whisper",
+            response_format="verbose_json",
+            timestamp_granularities=["segment"],
+        )
+        return transcribe
+    else:
+
+        audio = AudioSegment.from_file(path)
+        chunk_length_ms = int((max_size_mb * 1024 * 1024) / (file_size_mb) * len(audio))  # proportional chunk size
+        chunk_length_ms = min(chunk_length_ms, 10 * 60 * 1000)  # max 10 min per chunk for safety
+
+        segments = []
+        start = 0
+        idx = 0
+        while start < len(audio):
+            end = min(start + chunk_length_ms, len(audio))
+            chunk = audio[start:end]
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmpfile:
+                chunk.export(tmpfile.name, format="mp3")
+                transcribe = client.audio.transcriptions.create(
+                    file=open(tmpfile.name, "rb"),
+                    model="whisper",
+                    response_format="verbose_json",
+                    timestamp_granularities=["segment"],
+                )
+                # Adjust segment times
+                for seg in transcribe.segments:
+                    seg.start += start / 1000
+                    seg.end += start / 1000
+                segments.extend(transcribe.segments)
+                os.remove(tmpfile.name)
+            start = end
+            idx += 1
+
+        # Compose a result-like object
+        class Result:
+            def __init__(self, segments):
+                self.segments = segments
+                self.text = " ".join([seg.text for seg in segments])
+                self.duration = segments[-1].end if segments else 0
+
+        return Result(segments)
 
 def tts(text,output_path="./output.mp3"):
     # ElevenLabs API endpoint
@@ -190,6 +251,25 @@ def gpt4o_request(messages,text_format=None):
             return response.output_text
     except Exception as e:
         print(f"Error in GPT-4O request: {e}")
+        return "error"
+    
+def o3_request(messages,text_format=None):
+    try:
+        if text_format is not None:
+            response = client.responses.parse(
+            model="o3-mini",
+            input=messages,
+            text_format=text_format,
+            )
+            return response.output_parsed
+        else:
+            response = client.responses.parse(
+            model="o3-mini",
+            input=messages,
+            )
+            return response.output_text
+    except Exception as e:
+        print(f"Error in o3-mini request: {e}")
         return "error"
 
 def generate_image(prompt,output_path="image.jpg"):
@@ -256,18 +336,20 @@ def generate_srt_file(segments, output_path="output.srt"):
 
 def combine_images(image_list: list[Image], audio_file, output_file, total_duration):
     """Create a video from a list of images and an audio file."""
-    
+
     # Create a temporary file with ffmpeg directives
     with open("ffmpeg_input.txt", "w") as f:
         for i, img in enumerate(image_list):
             f.write(f"file '{img.path}'\n")
             if i < len(image_list) - 1:
-                duration = image_list[i+1].start_time - img.start_time
+                duration = round(image_list[i+1].start_time - img.start_time, 3)
             else:
-                duration = total_duration - img.start_time
+                duration = round(total_duration - img.start_time, 3)
+                # Ensure last duration is at least 0.1s to avoid ffmpeg errors
+                if duration <= 0:
+                    duration = 0.1
             f.write(f"duration {duration}\n")
 
-    # Construct the ffmpeg command
     cmd = [
         "ffmpeg",
         "-f", "concat",
@@ -281,10 +363,9 @@ def combine_images(image_list: list[Image], audio_file, output_file, total_durat
         "-shortest",
         output_file
     ]
-    
+
     subprocess.run(cmd)
     os.remove("ffmpeg_input.txt")  # Clean up temporary file
-    # Clean up temporary file
     print(f"Video successfully created as {output_file}")
 
 def burn_subtitle(video_path, srt_path, output_path):
@@ -342,9 +423,9 @@ def make_video(script,output_path="video/final_video.mp4"):
     print("Combining images into video...")
     combine_images(image_list, sound_path, "images.mp4", total_duration)
     print("Burning subtitles into video...")
-    burn_subtitle("images.mp4", "script_timestamps.srt", "final_video.mp4")
+    burn_subtitle("images.mp4", "script_timestamps.srt", output_path=output_path)
+
     # Remove all files in ./image directory
-    
     if os.path.exists(IMAGE_DIR):
         for filename in os.listdir(IMAGE_DIR):
             file_path = os.path.join(IMAGE_DIR, filename)
@@ -365,15 +446,23 @@ def main():
     ref_text = ref_text.text
     print(ref_text)
 
-    writer_msg = [{"role":"system","content":"rewrite the reference text as a spoken script for a youtube video in english,only output the script dont say other thing"},{"role":"user","content":ref_text}]
+    writer_msg = [{"role":"system","content":content_prompt},{"role":"user","content":ref_text}]
     
-    print("Generating script...")
-    script = gpt4o_request(writer_msg)
-    print(script)
+    print("Generating content...")
+    content = o3_request(writer_msg)
+    print(content)
 
-    sv_writer_msg = [{"role":"system","content":sv_prompt},{"role":"user","content":script}]
+    sv_writer_msg = [{"role":"system","content":sv_prompt},{"role":"user","content":content}]
     
-    sv_scripts = gpt4o_request(sv_writer_msg,ScriptList)
+    # Remove all files in ./video directory before generating new videos
+    video_dir = "./video"
+    if os.path.exists(video_dir):
+        for filename in os.listdir(video_dir):
+            file_path = os.path.join(video_dir, filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+
+    sv_scripts = o3_request(sv_writer_msg,ScriptList)
     for index,i in enumerate(sv_scripts.scripts):
         print(f"Tittle: {i.tittle}, Script: {i.script}")
         make_video(i.script,output_path=f"video/final_video_{index}.mp4")
@@ -381,6 +470,6 @@ def main():
     print("All done!")
 
 
-    
+
 if __name__ == "__main__":
     main()
