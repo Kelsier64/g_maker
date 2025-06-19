@@ -6,7 +6,8 @@ import yt_dlp
 import json
 from pydantic import BaseModel
 import time
-import asyncio
+import subprocess
+import argparse
 load_dotenv()
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -17,14 +18,14 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
 VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
 
-
-generate_prompt = """
+  
+prompt4generate_prompt = """
 Given the following transcript data, generate a list of detailed video generation prompts.
 - Only generate a prompt when there is a significant scene or visual change needed, not for every line.
 - Each prompt should be a dictionary with keys: 'prompt', 'start_time', and 'seconds'.
 - 'prompt': a vivid, specific description of the video scene that matches the text and context.
 - 'start_time': when the scene should start (in seconds).
-- 'seconds': the duration of the scene (in seconds).
+- 'seconds': the duration of the scene (in seconds), and must not exceed 5 seconds for any prompt.
 Ensure the prompts are well-aligned with the transcript timings and content, and only create prompts at appropriate moments where a new visual is needed.
 """
 
@@ -73,12 +74,8 @@ class Prompt(BaseModel):
     start_time: float
     seconds: int
 
-
 class PromptList(BaseModel):
     prompts: list[Prompt]
-
-    def __str__(self):
-        return "\n".join(self.prompts)
 
 class Video(BaseModel):
     video_path: str
@@ -100,24 +97,22 @@ gpt4o_client = AzureOpenAI(
 )
 
 
-def download_yt(url, format_type="mp3"):
+def download_yt(url, output_path, format_type="mp3"):
     """
     Download YouTube video as mp3 or mp4
     
     Args:
         url: YouTube URL
+        output_path: Full path to save the downloaded file (e.g., "./output/audio.mp3")
         format_type: "mp3" or "mp4"
     """
-    # Define fixed output paths based on format type
-    output_path = "./sound.mp3" if format_type == "mp3" else "./video.mp4"
-    
     # Create the output directory if it doesn't exist
     output_dir = os.path.dirname(output_path)
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # Extract filename without extension
-    filename = os.path.splitext(os.path.basename(output_path))[0]
+    # Extract filename without extension from the provided output_path
+    filename_template = os.path.join(output_dir, os.path.splitext(os.path.basename(output_path))[0])
     
     if format_type == "mp3":
         ydl_opts = {
@@ -127,7 +122,7 @@ def download_yt(url, format_type="mp3"):
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',  # Standard quality
             }],
-            'outtmpl': filename,  # yt-dlp will add extension automatically
+            'outtmpl': filename_template + '.%(ext)s', # Use template for yt-dlp
             'keepvideo': False,
             'noplaylist': True,
             'quiet': True,
@@ -135,7 +130,7 @@ def download_yt(url, format_type="mp3"):
     else:  # mp4
         ydl_opts = {
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-            'outtmpl': filename,
+            'outtmpl': filename_template + '.%(ext)s', # Use template for yt-dlp
             'noplaylist': True,
             'quiet': True,
         }
@@ -143,9 +138,18 @@ def download_yt(url, format_type="mp3"):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        return output_path
+        
+        # Check if the exact output_path exists
+        if os.path.exists(output_path):
+            return output_path
+        else:
+            print(f"Warning: Expected output file {output_path} not found directly. yt-dlp might have saved with a slightly different name or extension.")
+
+            return output_path
+
+
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred during download: {e}")
         return None
 
 def whisper(path):
@@ -214,115 +218,97 @@ def gpt4o_request(messages,text_format=None):
         print(f"Error in GPT-4O request: {e}")
         return "error"
 
-def generate_video(prompt, width=1920, height=1080, n_seconds=5, output_path="video/output.mp4"):
-    api_version = 'preview'
-    headers = {
-        "api-key": AZURE_OPENAI_API_KEY,
-        "Content-Type": "application/json"
-    }
 
-    # 1. Create a video generation job
-    create_url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/video/generations/jobs?api-version={api_version}"
-    body = {
-        "prompt": prompt,
-        "width": width,
-        "height": height,
-        "n_seconds": n_seconds,
-        "model": "sora"
-    }
-    response = requests.post(create_url, headers=headers, json=body)
-    response.raise_for_status()
-    job_id = response.json()["id"]
-    print(f"Job created: {job_id}")
-
-    # 2. Poll for job status
-    status_url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/video/generations/jobs/{job_id}?api-version={api_version}"
-    status = None
-    while status not in ("succeeded", "failed", "cancelled"):
-        time.sleep(5)
-        status_response = requests.get(status_url, headers=headers).json()
-        status = status_response.get("status")
-        print(f"Job status: {status}")
-
-    # 3. Retrieve generated video 
-    if status == "succeeded":
-        generations = status_response.get("generations", [])
-        if generations:
-            print(f"✅ Video generation succeeded.")
-            generation_id = generations[0].get("id")
-            video_url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/video/generations/{generation_id}/content/video?api-version={api_version}"
-            video_response = requests.get(video_url, headers=headers)
-            if video_response.ok:
-                # Ensure output directory exists
-                os.makedirs(os.path.dirname(output_path), exist_ok=True) if os.path.dirname(output_path) else None
-                with open(output_path, "wb") as file:
-                    file.write(video_response.content)
-                print(f'Generated video saved as "{output_path}"')
-                return output_path
-            else:
-                raise Exception("Failed to download video content.")
-        else:
-            raise Exception("No generations found in job result.")
-    else:
-        raise Exception(f"Job didn't succeed. Status: {status}")
+def format_timestamp(seconds):
+    """Convert seconds to SRT timestamp format (00:00:00,000)"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds_remainder = seconds % 60
+    milliseconds = int((seconds_remainder - int(seconds_remainder)) * 1000)
+    
+    return f"{hours:02d}:{minutes:02d}:{int(seconds_remainder):02d},{milliseconds:03d}"
 
 
+def generate_srt_file(segments, output_path="output.srt"):
+    """
+    Generate an SRT subtitle file from transcript segments.
+    
+    Args:
+        segments: List of transcript segments with start, end, and text properties
+        output_path: Path to save the SRT file
+    
+    Returns:
+        Path to the generated SRT file
+    """
+    # Create output directory if it doesn't exist
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    with open(output_path, "w", encoding="utf-8") as f:
+        for i, segment in enumerate(segments, start=1):
+            start_time = segment.start
+            end_time = segment.end
+            text = segment.text.strip()
+            
+            # Format timestamps as SRT format (00:00:00,000)
+            start_formatted = format_timestamp(start_time)
+            end_formatted = format_timestamp(end_time)
+            
+            # Write the subtitle entry
+            f.write(f"{i}\n")
+            f.write(f"{start_formatted} --> {end_formatted}\n")
+            f.write(f"{text}\n\n")
+    
+    return output_path
+
+def combine_media(video_file, audio_file, srt_file, output_file):
+    """Combine video and audio files with subtitles from timestamps using NVENC hardware acceleration."""
+    
+    # Combine video and audio with subtitles using NVENC
+    cmd = [
+        "ffmpeg",
+        "-i", video_file,  # Input video
+        "-i", audio_file,  # Input audio
+        "-c:v", "h264_nvenc",  # Use NVIDIA hardware acceleration
+        "-preset", "p4",    # NVENC preset (p1=slow/best quality, p7=fast/lower quality)
+        "-rc:v", "vbr",     # Variable bitrate mode
+        "-cq:v", "18",      # Quality level (lower = better)
+        "-map", "0:v:0",    # Map video from first input
+        "-map", "1:a:0",    # Map audio from second input
+        "-vf", f"subtitles={srt_file}",  # Burn subtitles into video
+        "-c:a", "aac",      # Use AAC for audio codec
+        "-b:a", "192k",     # Audio bitrate
+        "-shortest",        # End with shortest stream
+        output_file         # Output file
+    ]
+    
+    print("Executing FFmpeg command with NVENC hardware acceleration...")
+    subprocess.run(cmd)
+    
 
 
 def main(url):
-    # download_yt(url)
+    # download_yt(url,output_path="ref.mp3")
+    download_yt(url,output_path="bgv.mp4", format_type="mp4")
     # ref_text = whisper("sound.mp3")
     # ref_text = ref_text.text
     # print(ref_text)
     # writer_msg = [{"role":"system","content":"rewrite the reference text as a spoken script for a youtube video,only output the script dont say other thing"},{"role":"user","content":ref_text}]
     # script = gpt4o_request(writer_msg)
-    # print(script)  
+    # print(script)
     script = test_script
 
     # tts(script)
     script_timestamps = whisper("output.mp3")
     script_timestamps = script_timestamps.segments
-
-    script_for_ai = []
-    for segment in script_timestamps:
-        script_for_ai.append({
-            "start": round(segment.start,1),
-            "end": round(segment.end,1),
-            "text": segment.text.strip()
-        })
-    print(script_for_ai)
-
-    msg =[
-        {"role": "system", "content": generate_prompt},
-        {"role": "user","content": script_for_ai.__str__()}
-    ]
-    
-    prompt4video = gpt4o_request(msg,PromptList)
-    video_list:list[Video] = []
-
-
-    for i in prompt4video.prompts:
-        print(f"Prompt: {i.prompt}, Start Time: {i.start_time}, Duration: {i.seconds} seconds")
-
-    for i in prompt4video.prompts:
-        video_path = generate_video(
-            prompt=i.prompt,
-            n_seconds=i.seconds,
-            output_path=f"video/{i.start_time}_{i.seconds}.mp4"
-        )
-
-        video_list.append(Video(
-            video_path=video_path,
-            start_time=i.start_time,
-            seconds=i.seconds
-        ))
-
+      
+    # Save script_timestamps to a file
+    generate_srt_file(script_timestamps, output_path="script_timestamps.srt")
+    time.sleep(3)
+    # Combine the video, audio, and timestamps
+    combine_media("bgv.mp4", "output.mp3", "script_timestamps.srt", "final_output.mp4")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        url = sys.argv[1]
-        main(url)
-        
-    else:
-        main()
+    main("https://youtu.be/XBIaqOm0RKQ?si=up1DNPIAiImD4152")
