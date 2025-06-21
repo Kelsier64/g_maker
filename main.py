@@ -39,13 +39,23 @@ Ensure the prompts are well-aligned with the transcript timings and content, and
 """
 
 sv_prompt = """
-Please break down the following content into several short video scripts for speaking. 
-Each script should be suitable for short-form video (e.g. TikTok, YouTube Shorts).
-- 60-180 seconds per script.
-- You can also output only one script if it is in time(180s).
-- Each script should be a dictionary with keys: 'script' and 'tittle'.
-- 'script': the content of the script.
-- 'tittle': a short video type tittle.
+Please break down the following content into one or several short-form video scripts suitable for platforms like TikTok or YouTube Shorts.
+
+Requirements:
+- Each script should be between 60 and 180 seconds in total.
+- Each script should be self-contained and understandable without prior context.
+- Each script should have enough content.
+- You can output just one script if the content fits within the 180-second limit.
+- Each output should be a dictionary with the following keys:
+  - 'title': A short, catchy video title.
+  - 'script': The full narration for the video, written in a natural, spoken tone.
+
+Script Writing Guidelines:
+- The tone should be conversational, energetic, and easy to follow.
+- Use short sentences, rhetorical questions, and emotional hooks to keep viewers engaged.
+- Start strong — grab attention within the first few seconds.
+- End with a thought-provoking idea or light call to action (e.g. "What do you think?" or "Share this with a friend").
+- Avoid formal or academic wording.
 
 """
 
@@ -443,7 +453,7 @@ def main():
     url = input("Enter the ref YouTube URL: ")
 
     print(f"Downloading reference video from {url}...")
-    download_yt(url,output_path="refv_sound.mp3")
+    download_yt(url, output_path="refv_sound.mp3")
 
     print("Transcribing reference video...")
     ref_text = whisper("refv_sound.mp3")
@@ -451,14 +461,14 @@ def main():
     ref_text = ref_text.text
     print(ref_text)
 
-    writer_msg = [{"role":"system","content":content_prompt},{"role":"user","content":ref_text}]
-    
+    writer_msg = [{"role": "system", "content": content_prompt}, {"role": "user", "content": ref_text}]
+
     print("Generating content...")
     content = o3_request(writer_msg)
     print(content)
 
-    sv_writer_msg = [{"role":"system","content":sv_prompt},{"role":"user","content":content}]
-    
+    sv_writer_msg = [{"role": "system", "content": sv_prompt}, {"role": "user", "content": content}]
+
     # Remove all files in ./video directory before generating new videos
     video_dir = "./video"
     if os.path.exists(video_dir):
@@ -466,12 +476,19 @@ def main():
             file_path = os.path.join(video_dir, filename)
             if os.path.isfile(file_path):
                 os.remove(file_path)
+    else:
+        os.makedirs(video_dir)
 
-    sv_scripts = o3_request(sv_writer_msg,ScriptList)
-    for index,i in enumerate(sv_scripts.scripts):
-        print(f"Tittle: {i.tittle}, Script: {i.script}")
-        make_video(i.script,output_path=f"video/final_video_{index}.mp4")
-        
+    sv_scripts = o3_request(sv_writer_msg, ScriptList)
+
+    # Write video details to a txt file
+    details_path = os.path.join(video_dir, "video_details.txt")
+    with open(details_path, "w", encoding="utf-8") as details_file:
+        for index, i in enumerate(sv_scripts.scripts):
+            details_file.write(f"Video {index},Title: {i.tittle}\n")
+            print(f"Tittle: {i.tittle}, Script: {i.script}")
+            make_video(i.script, output_path=f"video/final_video_{index}.mp4")
+
     print("All done!")
 
 
