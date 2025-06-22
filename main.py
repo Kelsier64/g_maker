@@ -53,7 +53,7 @@ Requirements:
 Script Writing Guidelines:
 - The tone should be conversational, energetic, and easy to follow.
 - Use short sentences, rhetorical questions, and emotional hooks to keep viewers engaged.
-- Start strong — grab attention within the first few seconds.
+- Start strong — grab attention within the first few seconds,the hook at the start should be eye-catching and intriguing.
 - End with a thought-provoking idea or light call to action (e.g. "What do you think?" or "Share this with a friend").
 - Avoid formal or academic wording.
 
