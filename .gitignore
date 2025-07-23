@@ -15,3 +15,4 @@ wheels/
 *.jpg
 image/*
 video/*
+script_timestamps.srt

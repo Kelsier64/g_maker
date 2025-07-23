@@ -42,5 +42,5 @@ def speed_up_video(input_path, speed_factor=1.25):
 if __name__ == "__main__":
     # Example usage:
     # Replace with the actual path to your video file
-    video_path = "video/final_video_0.mp4"
+    video_path = input("Enter the path to the video file: ")
     speed_up_video(video_path, speed_factor=1.25)
