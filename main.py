@@ -13,6 +13,9 @@ import tempfile
 from pydub import AudioSegment
 import warnings
 
+import t2v_api_client
+
+
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 load_dotenv()
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
@@ -24,8 +27,8 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
-IMAGE_DIR = "./image"
-
+VIDEO_DIR = "./videos"
+VIDEO_FPS = 16
 
 
 prompt4generate_prompt = """
@@ -36,6 +39,25 @@ Given the following transcript data, generate a list of detailed image generatio
 - 'start_time': when the scene should start (in seconds) ,the first image MUST be 0.0.
 - dont write any words on the image, just describe the scene.
 Ensure the prompts are well-aligned with the transcript timings and content, and only create prompts at appropriate moments where a new visual is needed.
+"""
+prompt4generate_prompt = """
+You are given a transcript with timestamps.
+Your task: generate a list of **over-the-top, funny, and ridiculous** video generation prompts for a text-to-video system.
+Rules:
+1. Only create a prompt when there is a **significant scene or visual change** — NOT for every dialogue line.
+2. Scene descriptions should:
+   - Amplify the humor: use comically exaggerated actions, impossible events, or absurd costumes.
+   - Add random but fitting silly details (e.g., “a giant penguin juggling watermelons”).
+   - Specify characters, setting, mood, props, and absurd visual twists.
+   - Include time of day, lighting, and over-the-top camera moves if relevant.
+3. Ensure prompts are **aligned with transcript timings** and only capture **meaningful visual transitions**.
+4. Avoid generic descriptions; every prompt should make someone laugh just by reading it.
+
+Output format:
+   - "prompt": a vivid, exaggerated, absurd, and humorous scene description matching the transcript and context.
+   - "start_time": float, scene start time in seconds.
+   - "duration": integer, duration of the scene in seconds.
+
 """
 
 sv_prompt = """
@@ -73,20 +95,22 @@ Return only the cleaned script, no additional commentary.
 class Prompt(BaseModel):
     prompt: str
     start_time: float
+    duration: int
 
 class PromptList(BaseModel):
     prompts: list[Prompt]
 
-class Image(BaseModel):
+class Video(BaseModel):
     path: str
     start_time: float
+    duration: float
 
 class Script(BaseModel):
-    tittle:str
-    script:str
+    title: str
+    script: str
 
 class ScriptList(BaseModel):
-    scripts:list[Script]
+    scripts: list[Script]
 
 
 
@@ -243,64 +267,26 @@ def tts(text,output_path="./output.mp3"):
     except requests.exceptions.RequestException as e:
         print(f"Error in TTS API request: {e}")
         return None
-        
-def gpt4o_request(messages,text_format=None):
-    try:
-        if text_format is not None:
-            response = gpt4o_client.responses.parse(
-            model="gpt4o",
-            input=messages,
-            text_format=text_format,
-            )
-            return response.output_parsed
-        else:
-            response = gpt4o_client.responses.parse(
-            model="gpt4o",
-            input=messages,
-            )
-            return response.output_text
-    except Exception as e:
-        print(f"Error in GPT-4O request: {e}")
-        return "error"
     
-def o3_request(messages,text_format=None):
+def o4_request(messages,text_format=None):
     try:
         if text_format is not None:
             response = client.responses.parse(
-            model="o3-mini",
+            model="o4-mini",
             input=messages,
             text_format=text_format,
             )
             return response.output_parsed
         else:
             response = client.responses.parse(
-            model="o3-mini",
+            model="o4-mini",
             input=messages,
             )
             return response.output_text
     except Exception as e:
-        print(f"Error in o3-mini request: {e}")
+        print(f"Error in o4-mini request: {e}")
         return "error"
 
-def generate_image(prompt,output_path="image.jpg"):
-
-    result = openai_client.images.generate(
-        model="gpt-image-1",
-        size="1024x1024",
-        quality="low",
-        prompt=prompt
-    )
-
-    # Decode the generated image
-    image_base64 = result.data[0].b64_json
-    image_bytes = base64.b64decode(image_base64)
-    
-    output_dir = os.path.dirname(output_path)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    with open(output_path, "wb") as f:
-        f.write(image_bytes)
-    return output_path
 
 def format_timestamp(seconds):
     """Convert seconds to SRT timestamp format (00:00:00,000)"""
@@ -344,43 +330,6 @@ def generate_srt_file(segments, output_path="output.srt"):
     
     return output_path
 
-def combine_images(image_list: list[Image], audio_file, output_file, total_duration):
-    """Create a video from a list of images and an audio file."""
-
-    # Create a temporary file with ffmpeg directives
-    with open("ffmpeg_input.txt", "w") as f:
-        for i, img in enumerate(image_list):
-            f.write(f"file '{img.path}'\n")
-            if i < len(image_list) - 1:
-                duration = round(image_list[i+1].start_time - img.start_time, 3)
-            else:
-                duration = round(total_duration - img.start_time, 3)
-                # Ensure last duration is at least 0.1s to avoid ffmpeg errors
-                if duration <= 0:
-                    duration = 0.1
-            f.write(f"duration {duration}\n")
-        # Repeat the last image to ensure ffmpeg holds it for the last duration
-
-        f.write(f"file '{image_list[-1].path}'\n")
-
-    cmd = [
-        "ffmpeg",
-        "-f","concat",
-        "-safe", "0",
-        "-i", "ffmpeg_input.txt",
-        "-i", audio_file,
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-shortest",
-        output_file
-    ]
-
-    subprocess.run(cmd)
-    os.remove("ffmpeg_input.txt")  # Clean up temporary file
-    print(f"Video successfully created as {output_file}")
-
 def burn_subtitle(video_path, srt_path, output_path):
 
     cmd = [
@@ -417,33 +366,43 @@ def make_video(script,output_path="video/final_video.mp4"):
         {"role": "system", "content": prompt4generate_prompt  },
         {"role": "user","content": script_for_ai.__str__()}
     ]
-    prompt4image = o3_request(msg,PromptList)
+    prompt4video = o4_request(msg,PromptList)
 
-    image_list:list[Image] = []
-
-    for i in prompt4image.prompts:
-        print(f"Prompt: {i.prompt}, Start Time: {i.start_time}")
-    for i in prompt4image.prompts:
-        image_path = f"{IMAGE_DIR}/{i.start_time}.jpg"
-        generate_image(
-            prompt=i.prompt,
-            output_path=f"{IMAGE_DIR}/{i.start_time}.jpg"
+    video_list:list[Video] = []
+    tasks=[]
+    for i in prompt4video.prompts:
+        print(f"Prompt: {i.prompt}, Start Time: {i.start_time} , Duration: {i.duration}")
+    for i in prompt4video.prompts:
+        video_path = f"{VIDEO_DIR}/{i.start_time}_{i.duration}.mp4"
+        task_id = t2v_api_client.submit_video_generation(
+            prompt = i.prompt,
+            sample_steps = 30,
+            fps = VIDEO_FPS,
+            num_frames = i.duration * VIDEO_FPS + 1,
         )
+        if task_id: 
+            tasks.append(task_id)
 
-        image_list.append(Image(
-            path=image_path,
-            start_time=i.start_time
+        video_list.append(Video(
+            path=video_path,
+            start_time=i.start_time,
+            duration=i.duration
         ))
 
-    print("Combining images into video...")
-    combine_images(image_list, sound_path, "images.mp4", total_duration)
-    print("Burning subtitles into video...")
-    burn_subtitle("images.mp4", "script_timestamps.srt", output_path=output_path)
+    for id in tasks:
+        video_filename = t2v_api_client.monitor_task(id)
+        if not video_filename:
+            raise ValueError(f"Video generation failed for task ID {id}")
 
-    # Remove all files in ./image directory
-    if os.path.exists(IMAGE_DIR):
-        for filename in os.listdir(IMAGE_DIR):
-            file_path = os.path.join(IMAGE_DIR, filename)
+    print("Combining videos into final video...")
+    combine_videos(video_list, sound_path, "final_video.mp4", total_duration)
+    print("Burning subtitles into video...")
+    burn_subtitle("final_video.mp4", "script_timestamps.srt", output_path=output_path)
+
+    # Remove all files in ./video directory
+    if os.path.exists(VIDEO_DIR):
+        for filename in os.listdir(VIDEO_DIR):
+            file_path = os.path.join(VIDEO_DIR, filename)
             if os.path.isfile(file_path):
                 os.remove(file_path)
 
@@ -464,7 +423,7 @@ def main():
     writer_msg = [{"role": "system", "content": content_prompt}, {"role": "user", "content": ref_text}]
 
     print("Generating content...")
-    content = o3_request(writer_msg)
+    content = o4_request(writer_msg)
     print(content)
 
     sv_writer_msg = [{"role": "system", "content": sv_prompt}, {"role": "user", "content": content}]
@@ -479,7 +438,7 @@ def main():
     else:
         os.makedirs(video_dir)
 
-    sv_scripts = o3_request(sv_writer_msg, ScriptList)
+    sv_scripts = o4_request(sv_writer_msg, ScriptList)
 
     # Write video details to a txt file
     details_path = os.path.join(video_dir, "video_details.txt")
