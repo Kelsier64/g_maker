@@ -62,6 +62,7 @@ Rules:
 4. dont make a video while the previous one is in duration.
 5. dont write any words on the image, just describe the scene.
 6. the video generation model is poor ,so keep the prompts simple and focused.
+7. no timeline graphic or chart or other overlays.
 Output format:
    - "prompt": a vivid scene description matching the transcript and context.
    - "start_time": float, scene start time in seconds.
