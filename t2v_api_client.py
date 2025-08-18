@@ -1,4 +1,5 @@
 import requests,time
+import os
 BASE_URL = "http://localhost:8000"
 
 def get_queue_status():
@@ -22,7 +23,7 @@ def submit_video_generation(prompt, task_name=None, fps=16, num_frames=17, sampl
         "prompt": prompt,
         "negative_prompt": "blurry, low quality, distorted",
         "task": task_name or "t2v-1.3B",
-        "size": "832*480",
+        "size": "480*480",
         "sample_guide_scale": 6.0,
         "sample_steps": sample_steps,
         "num_frames": num_frames,
@@ -46,12 +47,16 @@ def submit_video_generation(prompt, task_name=None, fps=16, num_frames=17, sampl
         print(f"❌ Failed to submit: {response.text}")
         return None
     
-def download_video(filename):
+def download_video(filename, output_path=None):
     """Download a video file"""
+
     response = requests.get(f"{BASE_URL}/download/{filename}")
     
     if response.status_code == 200:
-        local_filename = f"downloaded_{filename}"
+        local_filename = output_path if output_path else f"downloaded_{filename}"
+        dir_name = os.path.dirname(local_filename)
+        if dir_name and not os.path.exists(dir_name):
+            os.makedirs(dir_name, exist_ok=True)
         with open(local_filename, "wb") as f:
             f.write(response.content)
         print(f"✅ Downloaded: {local_filename}")
@@ -90,22 +95,16 @@ def monitor_task(task_id, poll_interval=10):
         
         time.sleep(poll_interval)
     
-    return None
+    return None    
 
-def download_video(filename):
-    """Download a video file"""
-    response = requests.get(f"{BASE_URL}/download/{filename}")
-    
+def clean_queue():
+    """Clean the video generation queue"""
+    response = requests.get(f"{BASE_URL}/queue/clean")
     if response.status_code == 200:
-        local_filename = f"downloaded_{filename}"
-        with open(local_filename, "wb") as f:
-            f.write(response.content)
-        print(f"✅ Downloaded: {local_filename}")
-        return True
+        print("✅ Queue cleaned successfully.")
     else:
-        print(f"❌ Failed to download {filename}: {response.text}")
-        return False
-    
+        print(f"❌ Failed to clean queue: {response.text}")
+
 def main():
     task_id = submit_video_generation("A cat playing piano in a cozy jazz club", "test-cat-piano")
     video_filename = monitor_task(task_id)

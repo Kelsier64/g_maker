@@ -14,7 +14,7 @@ from pydub import AudioSegment
 import warnings
 
 import t2v_api_client
-
+import make_speaker
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 load_dotenv()
@@ -27,8 +27,20 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
-VIDEO_DIR = "./videos"
 VIDEO_FPS = 16
+
+# Add a single global PATHS dict for all built-in paths
+PATHS = {
+    "GENERATED_VIDEOS_DIR": "./generated_videos",
+    "FINAL_VIDEOS_DIR": "./final_videos",
+    "SOUND_PATH": "sound.mp3",
+    "BASE_VIDEO": "base_video.mp4",
+    "COMBINED_VIDEO": "combined_video.mp4",
+    "REF_SOUND": "refv_sound.mp3",
+    "SRT": "script_timestamps.srt",
+    "CLOSE_JPG": "close.jpg",
+    "OPEN_JPG": "open.jpg",
+}
 
 
 prompt4generate_prompt = """
@@ -42,19 +54,15 @@ Ensure the prompts are well-aligned with the transcript timings and content, and
 """
 prompt4generate_prompt = """
 You are given a transcript with timestamps.
-Your task: generate a list of **over-the-top, funny, and ridiculous** video generation prompts for a text-to-video system.
+Your task: generate a list of video generation prompts for a text-to-video system.
 Rules:
 1. Only create a prompt when there is a **significant scene or visual change** — NOT for every dialogue line.
-2. Scene descriptions should:
-   - Amplify the humor: use comically exaggerated actions, impossible events, or absurd costumes.
-   - Add random but fitting silly details (e.g., “a giant penguin juggling watermelons”).
-   - Specify characters, setting, mood, props, and absurd visual twists.
-   - Include time of day, lighting, and over-the-top camera moves if relevant.
-3. Ensure prompts are **aligned with transcript timings** and only capture **meaningful visual transitions**.
-4. Avoid generic descriptions; every prompt should make someone laugh just by reading it.
-
+2. Ensure prompts are **aligned with transcript timings** and only capture **meaningful visual transitions**.
+3. videos don't need to stick together.
+4. dont make a video while the previous one is in duration.
+5. dont write any words on the image, just describe the scene.
 Output format:
-   - "prompt": a vivid, exaggerated, absurd, and humorous scene description matching the transcript and context.
+   - "prompt": a vivid scene description matching the transcript and context.
    - "start_time": float, scene start time in seconds.
    - "duration": integer, duration of the scene in seconds.
 
@@ -103,7 +111,7 @@ class PromptList(BaseModel):
 class Video(BaseModel):
     path: str
     start_time: float
-    duration: float
+    duration: int
 
 class Script(BaseModel):
     title: str
@@ -330,30 +338,95 @@ def generate_srt_file(segments, output_path="output.srt"):
     
     return output_path
 
-def burn_subtitle(video_path, srt_path, output_path):
+def burn_subtitle(input_video_path,srt_path,output_path):
 
     cmd = [
         "ffmpeg",
-        "-i", video_path,
+        "-i", input_video_path,
         "-vf", f"subtitles={srt_path}",
         "-c:a", "copy",
         output_path
     ]
     subprocess.run(cmd, check=True)
-    os.remove(video_path)
-    os.remove(srt_path)
     print(f"Subtitles burned into video and saved as {output_path}")
 
-def make_video(script,output_path="video/final_video.mp4"):
-    print("Generating audio from script...")
-    sound_path = "sound.mp3"
-    tts(script,output_path=sound_path)
+def combine_videos(base_video_path: str, video_list: list[Video], audio_path: str, output_path: str):
+    """
+    Combine base video with overlay videos using ffmpeg.
+    Each overlay is enabled during between(start_time, start_time+duration).
+    The provided audio_path is mapped to the output (replacing any base audio).
+    Overlays will be centered on the base video.
+    """
+    # Build input arguments: base video, overlay videos, then audio
+    inputs = ["-y", "-i", base_video_path]
+    for v in video_list:
+        inputs += ["-i", v.path]
+    inputs += ["-i", audio_path]
 
-    script_timestamps = whisper(sound_path)
-    total_duration = script_timestamps.duration
+    # Build filter_complex: first reset overlay timestamps with setpts, then overlay them.
+    filter_parts = []
+    prev_label = "[0:v]"
+    for idx, v in enumerate(video_list, start=1):
+        inp_label = f"[{idx}:v]"
+        ov_label = f"[ov{idx}]"
+        out_label = f"[v{idx}]"
+        start = float(v.start_time)
+        end = float(v.start_time + v.duration)
+        # reset overlay timestamps so the overlay plays from its own t=0,
+        # shifted to start seconds on the main timeline
+        filter_parts.append(f"{inp_label} setpts=PTS-STARTPTS+{start}/TB {ov_label}")
+        # overlay the prepared overlay; enable only during the time window
+        # center the overlay on the main video
+        filter_parts.append(f"{prev_label}{ov_label} overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2:enable=between(t,{start},{end}) {out_label}")
+        prev_label = out_label
+
+    ff_filter = ";".join(filter_parts) if filter_parts else None
+
+    # Determine final video stream map
+    if ff_filter:
+        filter_args = ["-filter_complex", ff_filter]
+        map_video = ["-map", prev_label]
+    else:
+        filter_args = []
+        map_video = ["-map", "0:v"]
+
+    # Audio input index is base (0) + overlays (len(video_list)) => next is len(video_list)+1
+    audio_input_index = len(video_list) + 1
+    map_audio = ["-map", f"{audio_input_index}:a"]
+
+    # Output encoding / options
+    encoding_opts = [
+        "-r", str(VIDEO_FPS),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+        "-c:a", "aac", "-b:a", "192k",
+        "-shortest"
+    ]
+
+    cmd = ["ffmpeg"] + inputs + filter_args + encoding_opts + map_video + map_audio + [output_path]
+
+    try:
+        proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except subprocess.CalledProcessError as e:
+        # show ffmpeg output for debugging, then raise a clearer error
+        print("ffmpeg stdout:\n", e.stdout)
+        print("ffmpeg stderr:\n", e.stderr)
+        raise RuntimeError("ffmpeg failed, see stderr above") from e
+
+def make_video(script,output_path):
+
+    tts(script,output_path=PATHS["SOUND_PATH"])
+
+    make_speaker.create_speaker_video(
+        mp3_path=PATHS["SOUND_PATH"],
+        closed_mouth_jpg=PATHS["CLOSE_JPG"],
+        open_mouth_jpg=PATHS["OPEN_JPG"],
+        output_path=PATHS["BASE_VIDEO"]
+    )
+
+    script_timestamps = whisper(PATHS["SOUND_PATH"])
     script_timestamps = script_timestamps.segments
 
-    generate_srt_file(script_timestamps, output_path="script_timestamps.srt")
+    generate_srt_file(script_timestamps, output_path=PATHS["SRT"])
 
     script_for_ai = []
     for segment in script_timestamps:
@@ -368,85 +441,110 @@ def make_video(script,output_path="video/final_video.mp4"):
     ]
     prompt4video = o4_request(msg,PromptList)
 
-    video_list:list[Video] = []
-    tasks=[]
-    for i in prompt4video.prompts:
-        print(f"Prompt: {i.prompt}, Start Time: {i.start_time} , Duration: {i.duration}")
-    for i in prompt4video.prompts:
-        video_path = f"{VIDEO_DIR}/{i.start_time}_{i.duration}.mp4"
+    video_list: list[Video] = []
+    task_map = {}
+    
+    # Submit all video generation tasks and map task_id to video info
+    for prompt in prompt4video.prompts:
+        print(f"Prompt: {prompt.prompt}, Start Time: {prompt.start_time}, Duration: {prompt.duration}")
+        video_path = f"{PATHS['GENERATED_VIDEOS_DIR']}/{prompt.start_time}_{prompt.duration}.mp4"
         task_id = t2v_api_client.submit_video_generation(
-            prompt = i.prompt,
-            sample_steps = 30,
-            fps = VIDEO_FPS,
-            num_frames = i.duration * VIDEO_FPS + 1,
+            prompt=prompt.prompt,
+            sample_steps=30,
+            fps=VIDEO_FPS,
+            num_frames=prompt.duration * VIDEO_FPS + 1,
         )
-        if task_id: 
-            tasks.append(task_id)
+        if task_id:
+            task_map[task_id] = {
+                "video_path": video_path,
+                "start_time": prompt.start_time,
+                "duration": prompt.duration
+            }
+        time.sleep(0.5)
 
+    # Monitor and download videos as they complete
+    for task_id, info in task_map.items():
+        video_filename = t2v_api_client.monitor_task(task_id)
+        if not video_filename:
+            breakpoint()
+        t2v_api_client.download_video(video_filename, output_path=info["video_path"])
         video_list.append(Video(
-            path=video_path,
-            start_time=i.start_time,
-            duration=i.duration
+            path=info["video_path"],
+            start_time=info["start_time"],
+            duration=info["duration"]
         ))
 
-    for id in tasks:
-        video_filename = t2v_api_client.monitor_task(id)
-        if not video_filename:
-            raise ValueError(f"Video generation failed for task ID {id}")
-
     print("Combining videos into final video...")
-    combine_videos(video_list, sound_path, "final_video.mp4", total_duration)
+    combine_videos(PATHS["BASE_VIDEO"], video_list, PATHS["SOUND_PATH"], PATHS["COMBINED_VIDEO"])
     print("Burning subtitles into video...")
-    burn_subtitle("final_video.mp4", "script_timestamps.srt", output_path=output_path)
+    burn_subtitle(PATHS["COMBINED_VIDEO"], PATHS["SRT"], output_path=output_path)
 
-    # Remove all files in ./video directory
-    if os.path.exists(VIDEO_DIR):
-        for filename in os.listdir(VIDEO_DIR):
-            file_path = os.path.join(VIDEO_DIR, filename)
+def init():
+    t2v_api_client.clean_queue()
+
+    if os.path.exists(PATHS["GENERATED_VIDEOS_DIR"]):
+        for filename in os.listdir(PATHS["GENERATED_VIDEOS_DIR"]):
+            file_path = os.path.join(PATHS["GENERATED_VIDEOS_DIR"], filename)
             if os.path.isfile(file_path):
                 os.remove(file_path)
+    else:
+        os.makedirs(PATHS["GENERATED_VIDEOS_DIR"])
 
-    os.remove(sound_path)
+    if os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
+        for filename in os.listdir(PATHS["FINAL_VIDEOS_DIR"]):
+            file_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+    else:
+        os.makedirs(PATHS["FINAL_VIDEOS_DIR"])
+
+
+
+    if os.path.exists(PATHS["SOUND_PATH"]):
+        os.remove(PATHS["SOUND_PATH"])
+    if os.path.exists(PATHS["BASE_VIDEO"]):
+        os.remove(PATHS["BASE_VIDEO"])
 
 def main():
+    init()
     url = input("Enter the ref YouTube URL: ")
 
     print(f"Downloading reference video from {url}...")
-    download_yt(url, output_path="refv_sound.mp3")
+    download_yt(url, output_path=PATHS["REF_SOUND"])
 
+    print("\n")
+    print("="*20)
+    print("\n")
     print("Transcribing reference video...")
-    ref_text = whisper("refv_sound.mp3")
-    os.remove("refv_sound.mp3")
+    ref_text = whisper(PATHS["REF_SOUND"])
+    os.remove(PATHS["REF_SOUND"])
     ref_text = ref_text.text
     print(ref_text)
 
     writer_msg = [{"role": "system", "content": content_prompt}, {"role": "user", "content": ref_text}]
 
+
+    print("\n")
+    print("="*20)
+    print("\n")
     print("Generating content...")
     content = o4_request(writer_msg)
     print(content)
 
     sv_writer_msg = [{"role": "system", "content": sv_prompt}, {"role": "user", "content": content}]
 
-    # Remove all files in ./video directory before generating new videos
-    video_dir = "./video"
-    if os.path.exists(video_dir):
-        for filename in os.listdir(video_dir):
-            file_path = os.path.join(video_dir, filename)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-    else:
-        os.makedirs(video_dir)
-
     sv_scripts = o4_request(sv_writer_msg, ScriptList)
 
     # Write video details to a txt file
-    details_path = os.path.join(video_dir, "video_details.txt")
+    details_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], "video_details.txt")
+
     with open(details_path, "w", encoding="utf-8") as details_file:
         for index, i in enumerate(sv_scripts.scripts):
-            details_file.write(f"Video {index},Title: {i.tittle}\n")
-            print(f"Tittle: {i.tittle}, Script: {i.script}")
-            make_video(i.script, output_path=f"video/final_video_{index}.mp4")
+            details_file.write(f"Video {index}, Title: {i.title}\n")
+            print("="*20)
+            print(f"Title: {i.title}, Script: {i.script}")
+
+            make_video(i.script, output_path=f"{PATHS['FINAL_VIDEOS_DIR']}/final_video_{index}.mp4")
 
     print("All done!")
 
