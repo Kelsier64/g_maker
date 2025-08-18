@@ -12,6 +12,7 @@ wheels/
 .env
 *.mp4
 *.mp3
-image/*
-video/*
+
+generated_videos/
+final_videos/
 script_timestamps.srt

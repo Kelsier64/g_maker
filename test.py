@@ -32,7 +32,7 @@ def combine_videos(base_video_path: str, video_list: list[Video], audio_path: st
         # shifted to start seconds on the main timeline
         filter_parts.append(f"{inp_label} setpts=PTS-STARTPTS+{start}/TB {ov_label}")
         # overlay the prepared overlay; enable only during the time window
-        filter_parts.append(f"{prev_label}{ov_label} overlay=0:0:enable='between(t,{start},{end})' {out_label}")
+        filter_parts.append(f"{prev_label}{ov_label} overlay=(W-w)/2:(H-h)/2:enable='between(t,{start},{end})' {out_label}")
         prev_label = out_label
 
     ff_filter = ";".join(filter_parts) if filter_parts else None
@@ -69,17 +69,26 @@ def combine_videos(base_video_path: str, video_list: list[Video], audio_path: st
 
 
 def main():
-    video_list = [Video(path="generated_videos/0.0_4.mp4", start_time=0.0, duration=4.0),
-                  Video(path="generated_videos/4.0_5.mp4", start_time=4.0, duration=5.0),
-                  Video(path="generated_videos/12.0_3.mp4", start_time=12.0, duration=3.0),
-                  Video(path="generated_videos/26.0_6.mp4", start_time=26.0, duration=6.0),
-                  Video(path="generated_videos/63.0_7.mp4", start_time=63.0, duration=7.0),
-                  Video(path="generated_videos/78.0_7.mp4", start_time=78.0, duration=7.0),
-                  Video(path="generated_videos/94.0_6.mp4", start_time=94.0, duration=6.0),
-                  ]
+    video_list = [
+        Video(path="generated_videos/0.0_5.mp4", start_time=0.0, duration=5.0),
+        Video(path="generated_videos/102.7_4.mp4", start_time=102.7, duration=4.0),
+        Video(path="generated_videos/13.8_4.mp4", start_time=13.8, duration=4.0),
+        Video(path="generated_videos/17.9_2.mp4", start_time=17.9, duration=2.0),
+        Video(path="generated_videos/20.3_3.mp4", start_time=20.3, duration=3.0),
+        Video(path="generated_videos/23.8_5.mp4", start_time=23.8, duration=5.0),
+        Video(path="generated_videos/32.2_7.mp4", start_time=32.2, duration=7.0),
+        Video(path="generated_videos/39.4_8.mp4", start_time=39.4, duration=8.0),
+        Video(path="generated_videos/47.3_6.mp4", start_time=47.3, duration=6.0),
+        Video(path="generated_videos/5.4_3.mp4", start_time=5.4, duration=3.0),
+        Video(path="generated_videos/61.4_7.mp4", start_time=61.4, duration=7.0),
+        Video(path="generated_videos/68.6_7.mp4", start_time=68.6, duration=7.0),
+        Video(path="generated_videos/78.2_6.mp4", start_time=78.2, duration=6.0),
+        Video(path="generated_videos/9.0_4.mp4", start_time=9.0, duration=4.0),
+        Video(path="generated_videos/90.8_9.mp4", start_time=90.8, duration=9.0),
+    ]
 
 
-    combine_videos(base_video_path = "speaker_video.mp4", video_list = video_list, audio_path="sound.mp3", output_path="output_video.mp4")
+    combine_videos(base_video_path = "base_video.mp4", video_list = video_list, audio_path="sound.mp3", output_path="output_video.mp4")
 
 if __name__ == "__main__":
     main()

@@ -61,18 +61,20 @@ Rules:
 3. videos don't need to stick together.
 4. dont make a video while the previous one is in duration.
 5. dont write any words on the image, just describe the scene.
+6. the video generation model is poor ,so keep the prompts simple and focused.
 Output format:
    - "prompt": a vivid scene description matching the transcript and context.
    - "start_time": float, scene start time in seconds.
-   - "duration": integer, duration of the scene in seconds.
+   - "duration": integer, duration of the scene in seconds.(max:15)
 
 """
 
 sv_prompt = """
+you are a expert script writer
 Please break down the following content into one or several short-form video scripts suitable for platforms like TikTok or YouTube Shorts.
 
 Requirements:
-- Each script should be between 60 and 180 seconds in total.
+- Each script should be less than 180 seconds in total.
 - Each script should be self-contained and understandable without prior context.
 - Each script should have enough content.
 - You can output just one script if the content fits within the 180-second limit.
@@ -276,7 +278,7 @@ def tts(text,output_path="./output.mp3"):
         print(f"Error in TTS API request: {e}")
         return None
     
-def o4_request(messages,text_format=None):
+def gpt_request(messages,text_format=None):
     try:
         if text_format is not None:
             response = client.responses.parse(
@@ -355,7 +357,6 @@ def combine_videos(base_video_path: str, video_list: list[Video], audio_path: st
     Combine base video with overlay videos using ffmpeg.
     Each overlay is enabled during between(start_time, start_time+duration).
     The provided audio_path is mapped to the output (replacing any base audio).
-    Overlays will be centered on the base video.
     """
     # Build input arguments: base video, overlay videos, then audio
     inputs = ["-y", "-i", base_video_path]
@@ -376,8 +377,7 @@ def combine_videos(base_video_path: str, video_list: list[Video], audio_path: st
         # shifted to start seconds on the main timeline
         filter_parts.append(f"{inp_label} setpts=PTS-STARTPTS+{start}/TB {ov_label}")
         # overlay the prepared overlay; enable only during the time window
-        # center the overlay on the main video
-        filter_parts.append(f"{prev_label}{ov_label} overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2:enable=between(t,{start},{end}) {out_label}")
+        filter_parts.append(f"{prev_label}{ov_label} overlay=(W-w)/2:(H-h)/2:enable='between(t,{start},{end})' {out_label}")
         prev_label = out_label
 
     ff_filter = ";".join(filter_parts) if filter_parts else None
@@ -413,7 +413,7 @@ def combine_videos(base_video_path: str, video_list: list[Video], audio_path: st
         raise RuntimeError("ffmpeg failed, see stderr above") from e
 
 def make_video(script,output_path):
-
+    print("Generating audio...")
     tts(script,output_path=PATHS["SOUND_PATH"])
 
     make_speaker.create_speaker_video(
@@ -422,7 +422,7 @@ def make_video(script,output_path):
         open_mouth_jpg=PATHS["OPEN_JPG"],
         output_path=PATHS["BASE_VIDEO"]
     )
-
+    print("Generating srt...")
     script_timestamps = whisper(PATHS["SOUND_PATH"])
     script_timestamps = script_timestamps.segments
 
@@ -439,7 +439,8 @@ def make_video(script,output_path):
         {"role": "system", "content": prompt4generate_prompt  },
         {"role": "user","content": script_for_ai.__str__()}
     ]
-    prompt4video = o4_request(msg,PromptList)
+    print("Generating prompts for video generation...")
+    prompt4video = gpt_request(msg,PromptList)
 
     video_list: list[Video] = []
     task_map = {}
@@ -528,12 +529,14 @@ def main():
     print("="*20)
     print("\n")
     print("Generating content...")
-    content = o4_request(writer_msg)
+    content = gpt_request(writer_msg)
     print(content)
-
+    print("\n")
+    print("="*20)
+    print("\n")
     sv_writer_msg = [{"role": "system", "content": sv_prompt}, {"role": "user", "content": content}]
-
-    sv_scripts = o4_request(sv_writer_msg, ScriptList)
+    print("Generating short video scripts...")
+    sv_scripts = gpt_request(sv_writer_msg, ScriptList)
 
     # Write video details to a txt file
     details_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], "video_details.txt")
@@ -541,9 +544,9 @@ def main():
     with open(details_path, "w", encoding="utf-8") as details_file:
         for index, i in enumerate(sv_scripts.scripts):
             details_file.write(f"Video {index}, Title: {i.title}\n")
-            print("="*20)
-            print(f"Title: {i.title}, Script: {i.script}")
 
+            print(f"Title: {i.title}, Script: {i.script}")
+            print("="*20)
             make_video(i.script, output_path=f"{PATHS['FINAL_VIDEOS_DIR']}/final_video_{index}.mp4")
 
     print("All done!")
