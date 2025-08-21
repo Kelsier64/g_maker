@@ -34,13 +34,15 @@ VIDEO_FPS = 16
 PATHS = {
     "GENERATED_VIDEOS_DIR": "./generated_videos",
     "FINAL_VIDEOS_DIR": "./final_videos",
+    "TEMP_DIR": "./temp",
     "SOUND_PATH": "temp/sound.mp3",
     "BASE_VIDEO": "temp/base_video.mp4",
     "COMBINED_VIDEO": "temp/combined_video.mp4",
     "REF_SOUND": "temp/refv_sound.mp3",
     "SRT": "temp/script_timestamps.srt",
     "CLOSE_JPG": "static/close.jpg",
-    "OPEN_JPG": "static/open.jpg",
+    "OPEN_JPG": "static/open.jpg"
+
 }
 
 
@@ -491,20 +493,14 @@ def init():
     else:
         os.makedirs(PATHS["GENERATED_VIDEOS_DIR"])
 
-    # if os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
-    #     for filename in os.listdir(PATHS["FINAL_VIDEOS_DIR"]):
-    #         file_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], filename)
-    #         if os.path.isfile(file_path):
-    #             os.remove(file_path)
-    # else:
-    #     os.makedirs(PATHS["FINAL_VIDEOS_DIR"])
+    if os.path.exists(PATHS["TEMP_DIR"]):
+        for filename in os.listdir(PATHS["TEMP_DIR"]):
+            file_path = os.path.join(PATHS["TEMP_DIR"], filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+    else:
+        os.makedirs(PATHS["TEMP_DIR"])
 
-
-
-    if os.path.exists(PATHS["SOUND_PATH"]):
-        os.remove(PATHS["SOUND_PATH"])
-    if os.path.exists(PATHS["BASE_VIDEO"]):
-        os.remove(PATHS["BASE_VIDEO"])
 
 def pipeline(url):
     print(f"Downloading reference video from {url}...")
@@ -562,15 +558,6 @@ def main():
     # init
     t2v_api_client.clean_queue()
     t2v_api_client.clean_all_video()
-
-    if os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
-        for filename in os.listdir(PATHS["FINAL_VIDEOS_DIR"]):
-            file_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], filename)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-    else:
-        os.makedirs(PATHS["FINAL_VIDEOS_DIR"])
-
 
 
     while True:
