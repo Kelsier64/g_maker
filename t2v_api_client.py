@@ -105,6 +105,14 @@ def clean_queue():
     else:
         print(f"❌ Failed to clean queue: {response.text}")
 
+def clean_all_video():
+    """Clean all video files"""
+    response = requests.get(f"{BASE_URL}/videos/clean")
+    if response.status_code == 200:
+        print("✅ All videos cleaned successfully.")
+    else:
+        print(f"❌ Failed to clean all videos: {response.text}")
+
 def main():
     task_id = submit_video_generation("A cat playing piano in a cozy jazz club", "test-cat-piano")
     video_filename = monitor_task(task_id)

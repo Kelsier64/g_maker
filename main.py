@@ -15,6 +15,7 @@ import warnings
 
 import t2v_api_client
 import make_speaker
+from uuid import uuid4
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 load_dotenv()
@@ -452,7 +453,7 @@ def make_video(script,output_path):
         video_path = f"{PATHS['GENERATED_VIDEOS_DIR']}/{prompt.start_time}_{prompt.duration}.mp4"
         task_id = t2v_api_client.submit_video_generation(
             prompt=prompt.prompt,
-            sample_steps=30,
+            sample_steps=50,
             fps=VIDEO_FPS,
             num_frames=prompt.duration * VIDEO_FPS + 1,
         )
@@ -483,7 +484,7 @@ def make_video(script,output_path):
 
 def init():
     t2v_api_client.clean_queue()
-
+    t2v_api_client.clean_all_video()
     if os.path.exists(PATHS["GENERATED_VIDEOS_DIR"]):
         for filename in os.listdir(PATHS["GENERATED_VIDEOS_DIR"]):
             file_path = os.path.join(PATHS["GENERATED_VIDEOS_DIR"], filename)
@@ -492,13 +493,13 @@ def init():
     else:
         os.makedirs(PATHS["GENERATED_VIDEOS_DIR"])
 
-    if os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
-        for filename in os.listdir(PATHS["FINAL_VIDEOS_DIR"]):
-            file_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], filename)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-    else:
-        os.makedirs(PATHS["FINAL_VIDEOS_DIR"])
+    # if os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
+    #     for filename in os.listdir(PATHS["FINAL_VIDEOS_DIR"]):
+    #         file_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], filename)
+    #         if os.path.isfile(file_path):
+    #             os.remove(file_path)
+    # else:
+    #     os.makedirs(PATHS["FINAL_VIDEOS_DIR"])
 
 
 
@@ -507,10 +508,7 @@ def init():
     if os.path.exists(PATHS["BASE_VIDEO"]):
         os.remove(PATHS["BASE_VIDEO"])
 
-def main():
-    init()
-    url = input("Enter the ref YouTube URL: ")
-
+def pipeline(url):
     print(f"Downloading reference video from {url}...")
     download_yt(url, output_path=PATHS["REF_SOUND"])
 
@@ -541,18 +539,75 @@ def main():
 
     # Write video details to a txt file
     details_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], "video_details.txt")
-
+    uid = uuid4().hex
     with open(details_path, "w", encoding="utf-8") as details_file:
         for index, i in enumerate(sv_scripts.scripts):
-            details_file.write(f"Video {index}, Title: {i.title}\n")
+            
 
             print(f"Title: {i.title}, Script: {i.script}")
             print("="*20)
-            make_video(i.script, output_path=f"{PATHS['FINAL_VIDEOS_DIR']}/final_video_{index}.mp4")
+            init()
+
+            output_file = os.path.join(PATHS["FINAL_VIDEOS_DIR"], f"{uid}_{index}.mp4")
+            
+            start = time.perf_counter()
+            make_video(i.script, output_path=output_file)
+            elapsed = time.perf_counter() - start
+            details_file.write(f"Series: {uid}, Video: {index}, Title: {i.title}, ElapsedSeconds:{elapsed:.2f}\n")
 
     print("All done!")
 
 
+def main():
+
+    if os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
+        for filename in os.listdir(PATHS["FINAL_VIDEOS_DIR"]):
+            file_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+    else:
+        os.makedirs(PATHS["FINAL_VIDEOS_DIR"])
+
+    while True:
+        urls = []
+        while True:
+            print("1. Add a YouTube URL")
+            print("2. Add multiple YouTube URLs (comma-separated)")
+            print("3. Start processing")
+            choice = input("Enter your choice: ").strip()
+
+            if choice == "1":
+                u = input("Enter the YouTube URL: ").strip()
+                if u:
+                    urls.append(u)
+                    print("Added.")
+                else:
+                    print("No URL entered.")
+            elif choice == "2":
+                s = input("Enter URLs separated by commas: ").strip()
+                new_urls = [x.strip() for x in s.split(",") if x.strip()]
+                if new_urls:
+                    urls.extend(new_urls)
+                    print(f"Added {len(new_urls)} URLs.")
+                else:
+                    print("No URLs entered.")
+            elif choice == "3":
+                if not urls:
+                    print("No URLs provided. Please add at least one URL.")
+                    continue
+                print("Starting processing of URLs...")
+                break
+            else:
+                print("Invalid choice, please try again.")
+
+        for idx, url in enumerate(urls):
+            try:
+                print(f"\nProcessing URL {idx + 1}/{len(urls)}: {url}")
+                pipeline(url)
+            except Exception as e:
+                print(f"Error processing {url}: {e}")
+
+        print("All done.")
 
 if __name__ == "__main__":
     main()
