@@ -15,4 +15,4 @@ wheels/
 
 generated_videos/
 final_videos/
-script_timestamps.srt
+temp/

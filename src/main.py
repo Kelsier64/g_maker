@@ -13,8 +13,8 @@ import tempfile
 from pydub import AudioSegment
 import warnings
 
-import t2v_api_client
-import make_speaker
+import src.t2v_api_client as t2v_api_client
+import src.make_speaker as make_speaker
 from uuid import uuid4
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -27,20 +27,20 @@ GPT4O_OPENAI_ENDPOINT = "https://hsh2024.openai.azure.com"
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
+VOICE_ID = "MFZUKuGQUsGJPQjTS4wC"
 VIDEO_FPS = 16
 
 # Add a single global PATHS dict for all built-in paths
 PATHS = {
     "GENERATED_VIDEOS_DIR": "./generated_videos",
     "FINAL_VIDEOS_DIR": "./final_videos",
-    "SOUND_PATH": "sound.mp3",
-    "BASE_VIDEO": "base_video.mp4",
-    "COMBINED_VIDEO": "combined_video.mp4",
-    "REF_SOUND": "refv_sound.mp3",
-    "SRT": "script_timestamps.srt",
-    "CLOSE_JPG": "close.jpg",
-    "OPEN_JPG": "open.jpg",
+    "SOUND_PATH": "temp/sound.mp3",
+    "BASE_VIDEO": "temp/base_video.mp4",
+    "COMBINED_VIDEO": "temp/combined_video.mp4",
+    "REF_SOUND": "temp/refv_sound.mp3",
+    "SRT": "temp/script_timestamps.srt",
+    "CLOSE_JPG": "static/close.jpg",
+    "OPEN_JPG": "static/open.jpg",
 }
 
 
@@ -94,8 +94,8 @@ Script Writing Guidelines:
 """
 
 content_prompt = """
-You are a video script cleaning assistant. Your task is to refine a transcript by preserving the main content while removing unnecessary parts in english. Please do the following:
-- output in english.
+You are a video script cleaning assistant. Your task is to refine a transcript by preserving the main content while removing unnecessary parts. Please do the following:
+- translate to english.
 - Remove introductory and closing greetings, such as “Hi everyone” or “Thanks for watching.”
 - Remove channel promotions, like “Remember to like and subscribe.”
 - Remove unrelated small talk or off-topic banter.
@@ -483,8 +483,6 @@ def make_video(script,output_path):
     burn_subtitle(PATHS["COMBINED_VIDEO"], PATHS["SRT"], output_path=output_path)
 
 def init():
-    t2v_api_client.clean_queue()
-    t2v_api_client.clean_all_video()
     if os.path.exists(PATHS["GENERATED_VIDEOS_DIR"]):
         for filename in os.listdir(PATHS["GENERATED_VIDEOS_DIR"]):
             file_path = os.path.join(PATHS["GENERATED_VIDEOS_DIR"], filename)
@@ -537,13 +535,15 @@ def pipeline(url):
     print("Generating short video scripts...")
     sv_scripts = gpt_request(sv_writer_msg, ScriptList)
 
-    # Write video details to a txt file
+
+    # video making loop
     details_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], "video_details.txt")
     uid = uuid4().hex
     with open(details_path, "w", encoding="utf-8") as details_file:
+        details_file.write(f"Series uid: {uid}, Source: {url}\n")
+
         for index, i in enumerate(sv_scripts.scripts):
             
-
             print(f"Title: {i.title}, Script: {i.script}")
             print("="*20)
             init()
@@ -553,12 +553,15 @@ def pipeline(url):
             start = time.perf_counter()
             make_video(i.script, output_path=output_file)
             elapsed = time.perf_counter() - start
-            details_file.write(f"Series: {uid}, Video: {index}, Title: {i.title}, ElapsedSeconds:{elapsed:.2f}\n")
+            details_file.write(f"   Video: {index}, Title: {i.title}, FileName: {output_file}, ElapsedSeconds:{elapsed:.2f}\n")
 
-    print("All done!")
+    print(f"\nseries {uid} done")
 
 
 def main():
+    # init
+    t2v_api_client.clean_queue()
+    t2v_api_client.clean_all_video()
 
     if os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
         for filename in os.listdir(PATHS["FINAL_VIDEOS_DIR"]):
@@ -567,6 +570,8 @@ def main():
                 os.remove(file_path)
     else:
         os.makedirs(PATHS["FINAL_VIDEOS_DIR"])
+
+
 
     while True:
         urls = []
