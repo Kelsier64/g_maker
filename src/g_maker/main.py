@@ -1,21 +1,22 @@
-import os,sys
+import os
 from openai import AzureOpenAI,OpenAI
 from dotenv import load_dotenv
 import requests
-import yt_dlp
-import json
+
 from pydantic import BaseModel
 import time
-import base64
-import subprocess
-import argparse
 import tempfile
 from pydub import AudioSegment
 import warnings
-
-import src.t2v_api_client as t2v_api_client
-import src.make_speaker as make_speaker
 from uuid import uuid4
+
+from g_maker.services import t2v_api_client
+from g_maker.processing import make_speaker
+from g_maker.processing import video_processing
+from g_maker.processing import srt_processing
+from g_maker.input import downloader
+from g_maker.models import Prompt,PromptList,Video,Script,ScriptList
+
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 load_dotenv()
@@ -33,15 +34,17 @@ VIDEO_FPS = 16
 # Add a single global PATHS dict for all built-in paths
 PATHS = {
     "GENERATED_VIDEOS_DIR": "./generated_videos",
-    "FINAL_VIDEOS_DIR": "./final_videos",
+    "FINAL_VIDEOS_DIR": "./output",
     "TEMP_DIR": "./temp",
     "SOUND_PATH": "temp/sound.mp3",
     "BASE_VIDEO": "temp/base_video.mp4",
     "COMBINED_VIDEO": "temp/combined_video.mp4",
+    "BLURRED_VIDEO": "temp/blurred_video.mp4",
     "REF_SOUND": "temp/refv_sound.mp3",
     "SRT": "temp/script_timestamps.srt",
     "CLOSE_JPG": "static/close.jpg",
-    "OPEN_JPG": "static/open.jpg"
+    "OPEN_JPG": "static/open.jpg",
+
 
 }
 
@@ -106,25 +109,6 @@ You are a video script cleaning assistant. Your task is to refine a transcript b
 Return only the cleaned script, no additional commentary.
 
 """
-class Prompt(BaseModel):
-    prompt: str
-    start_time: float
-    duration: int
-
-class PromptList(BaseModel):
-    prompts: list[Prompt]
-
-class Video(BaseModel):
-    path: str
-    start_time: float
-    duration: int
-
-class Script(BaseModel):
-    title: str
-    script: str
-
-class ScriptList(BaseModel):
-    scripts: list[Script]
 
 
 
@@ -144,53 +128,7 @@ openai_client = OpenAI(
     api_key=OPENAI_API_KEY
 )
 
-def download_yt(url,output_path,format_type="mp3"):
-    """
-    Download YouTube video as mp3 or mp4
-    
-    Args:
-        url: YouTube URL
-        format_type: "mp3" or "mp4"
-    """
-    # Define fixed output paths based on format type
-    
-    
-    # Create the output directory if it doesn't exist
-    output_dir = os.path.dirname(output_path)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
 
-    # Extract filename without extension
-    filename = os.path.splitext(os.path.basename(output_path))[0]
-    
-    if format_type == "mp3":
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',  # Standard quality
-            }],
-            'outtmpl': filename,  # yt-dlp will add extension automatically
-            'keepvideo': False,
-            'noplaylist': True,
-            'quiet': True,
-        }
-    else:  # mp4
-        ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-            'outtmpl': filename,
-            'noplaylist': True,
-            'quiet': True,
-        }
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        return output_path
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return None
 
 def whisper(path):
     """
@@ -302,121 +240,10 @@ def gpt_request(messages,text_format=None):
         return "error"
 
 
-def format_timestamp(seconds):
-    """Convert seconds to SRT timestamp format (00:00:00,000)"""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    seconds_remainder = seconds % 60
-    milliseconds = int((seconds_remainder - int(seconds_remainder)) * 1000)
-    
-    return f"{hours:02d}:{minutes:02d}:{int(seconds_remainder):02d},{milliseconds:03d}"
 
-def generate_srt_file(segments, output_path="output.srt"):
-    """
-    Generate an SRT subtitle file from transcript segments.
-    
-    Args:
-        segments: List of transcript segments with start, end, and text properties
-        output_path: Path to save the SRT file
-    
-    Returns:
-        Path to the generated SRT file
-    """
-    # Create output directory if it doesn't exist
-    output_dir = os.path.dirname(output_path)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
-    with open(output_path, "w", encoding="utf-8") as f:
-        for i, segment in enumerate(segments, start=1):
-            start_time = segment.start
-            end_time = segment.end
-            text = segment.text.strip()
-            
-            # Format timestamps as SRT format (00:00:00,000)
-            start_formatted = format_timestamp(start_time)
-            end_formatted = format_timestamp(end_time)
-            
-            # Write the subtitle entry
-            f.write(f"{i}\n")
-            f.write(f"{start_formatted} --> {end_formatted}\n")
-            f.write(f"{text}\n\n")
-    
-    return output_path
 
-def burn_subtitle(input_video_path,srt_path,output_path):
+def video_pipeline(script,output_path):
 
-    cmd = [
-        "ffmpeg",
-        "-i", input_video_path,
-        "-vf", f"subtitles={srt_path}",
-        "-c:a", "copy",
-        output_path
-    ]
-    subprocess.run(cmd, check=True)
-    print(f"Subtitles burned into video and saved as {output_path}")
-
-def combine_videos(base_video_path: str, video_list: list[Video], audio_path: str, output_path: str):
-    """
-    Combine base video with overlay videos using ffmpeg.
-    Each overlay is enabled during between(start_time, start_time+duration).
-    The provided audio_path is mapped to the output (replacing any base audio).
-    """
-    # Build input arguments: base video, overlay videos, then audio
-    inputs = ["-y", "-i", base_video_path]
-    for v in video_list:
-        inputs += ["-i", v.path]
-    inputs += ["-i", audio_path]
-
-    # Build filter_complex: first reset overlay timestamps with setpts, then overlay them.
-    filter_parts = []
-    prev_label = "[0:v]"
-    for idx, v in enumerate(video_list, start=1):
-        inp_label = f"[{idx}:v]"
-        ov_label = f"[ov{idx}]"
-        out_label = f"[v{idx}]"
-        start = float(v.start_time)
-        end = float(v.start_time + v.duration)
-        # reset overlay timestamps so the overlay plays from its own t=0,
-        # shifted to start seconds on the main timeline
-        filter_parts.append(f"{inp_label} setpts=PTS-STARTPTS+{start}/TB {ov_label}")
-        # overlay the prepared overlay; enable only during the time window
-        filter_parts.append(f"{prev_label}{ov_label} overlay=(W-w)/2:(H-h)/2:enable='between(t,{start},{end})' {out_label}")
-        prev_label = out_label
-
-    ff_filter = ";".join(filter_parts) if filter_parts else None
-
-    # Determine final video stream map
-    if ff_filter:
-        filter_args = ["-filter_complex", ff_filter]
-        map_video = ["-map", prev_label]
-    else:
-        filter_args = []
-        map_video = ["-map", "0:v"]
-
-    # Audio input index is base (0) + overlays (len(video_list)) => next is len(video_list)+1
-    audio_input_index = len(video_list) + 1
-    map_audio = ["-map", f"{audio_input_index}:a"]
-
-    # Output encoding / options
-    encoding_opts = [
-        "-r", str(VIDEO_FPS),
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-        "-c:a", "aac", "-b:a", "192k",
-        "-shortest"
-    ]
-
-    cmd = ["ffmpeg"] + inputs + filter_args + encoding_opts + map_video + map_audio + [output_path]
-
-    try:
-        proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    except subprocess.CalledProcessError as e:
-        # show ffmpeg output for debugging, then raise a clearer error
-        print("ffmpeg stdout:\n", e.stdout)
-        print("ffmpeg stderr:\n", e.stderr)
-        raise RuntimeError("ffmpeg failed, see stderr above") from e
-
-def make_video(script,output_path):
     print("Generating audio...")
     tts(script,output_path=PATHS["SOUND_PATH"])
 
@@ -430,7 +257,7 @@ def make_video(script,output_path):
     script_timestamps = whisper(PATHS["SOUND_PATH"])
     script_timestamps = script_timestamps.segments
 
-    generate_srt_file(script_timestamps, output_path=PATHS["SRT"])
+    srt_processing.generate_srt_file(script_timestamps, output_path=PATHS["SRT"])
 
     script_for_ai = []
     for segment in script_timestamps:
@@ -480,9 +307,18 @@ def make_video(script,output_path):
         ))
 
     print("Combining videos into final video...")
-    combine_videos(PATHS["BASE_VIDEO"], video_list, PATHS["SOUND_PATH"], PATHS["COMBINED_VIDEO"])
+    video_processing.combine_videos(VIDEO_FPS, PATHS["BASE_VIDEO"], video_list, PATHS["SOUND_PATH"], PATHS["COMBINED_VIDEO"])
+
+    print("Applying blur effect to video...")
+    video_processing.blur_effect(input_path=PATHS["COMBINED_VIDEO"], output_path=PATHS["BLURRED_VIDEO"])
+
     print("Burning subtitles into video...")
-    burn_subtitle(PATHS["COMBINED_VIDEO"], PATHS["SRT"], output_path=output_path)
+    video_processing.burn_subtitle(PATHS["BLURRED_VIDEO"], PATHS["SRT"], output_path=output_path)
+
+
+
+
+
 
 def init():
     if os.path.exists(PATHS["GENERATED_VIDEOS_DIR"]):
@@ -502,9 +338,9 @@ def init():
         os.makedirs(PATHS["TEMP_DIR"])
 
 
-def pipeline(url):
+def main_pipeline(url):
     print(f"Downloading reference video from {url}...")
-    download_yt(url, output_path=PATHS["REF_SOUND"])
+    downloader.download_yt(url, output_path=PATHS["REF_SOUND"])
 
     print("\n")
     print("="*20)
@@ -547,11 +383,12 @@ def pipeline(url):
             output_file = os.path.join(PATHS["FINAL_VIDEOS_DIR"], f"{uid}_{index}.mp4")
             
             start = time.perf_counter()
-            make_video(i.script, output_path=output_file)
+            video_pipeline(i.script, output_path=output_file)
             elapsed = time.perf_counter() - start
             details_file.write(f"   Video: {index}, Title: {i.title}, FileName: {output_file}, ElapsedSeconds:{elapsed:.2f}\n")
 
     print(f"\nseries {uid} done")
+
 
 
 def main():
@@ -595,7 +432,7 @@ def main():
         for idx, url in enumerate(urls):
             try:
                 print(f"\nProcessing URL {idx + 1}/{len(urls)}: {url}")
-                pipeline(url)
+                main_pipeline(url)
             except Exception as e:
                 print(f"Error processing {url}: {e}")
 
