@@ -10,8 +10,6 @@ wheels/
 .venv
 
 .env
-*.mp4
-*.mp3
 
 generated_videos/*
 output/*

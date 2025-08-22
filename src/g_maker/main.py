@@ -367,12 +367,9 @@ def main_pipeline(url):
 
 
     # video making loop
-
-    if not os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
-        os.makedirs(PATHS["FINAL_VIDEOS_DIR"], exist_ok=True)
     details_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], "video_details.txt")
-    
     uid = uuid4().hex
+
     with open(details_path, "w", encoding="utf-8") as details_file:
         details_file.write(f"SourceUid: {uid}, Url: {url}\n")
 
@@ -403,7 +400,13 @@ def main():
     init()
     t2v_api_client.clean_queue()
     t2v_api_client.clean_all_video()
-
+    
+    if not os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
+        os.makedirs(PATHS["FINAL_VIDEOS_DIR"], exist_ok=True)
+    if not os.path.exists(PATHS["GENERATED_VIDEOS_DIR"]):
+        os.makedirs(PATHS["GENERATED_VIDEOS_DIR"], exist_ok=True)
+    if not os.path.exists(PATHS["TEMP_DIR"]):
+        os.makedirs(PATHS["TEMP_DIR"], exist_ok=True)
 
     while True:
         urls = []

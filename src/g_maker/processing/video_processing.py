@@ -1,17 +1,41 @@
 import subprocess
 from g_maker.models import Video
+import shlex
+from subprocess import CalledProcessError
 
-def burn_subtitle(input_video_path,srt_path,output_path):
+def burn_subtitle(input_video_path: str, srt_path: str, output_path: str, fontsize: int | None = None, margin_v: int | None = None):
+    """
+    Burn subtitles into a vertical (9:16) short-form video.
+    Defaults tuned for ~1080x1920: larger fontsize and bottom margin.
+    You can override fontsize and margin_v if needed.
+    """
+
+    # sensible defaults for 9:16 short-form videos
+    fontsize = fontsize or 10
+    margin_v = margin_v or 50
+
+    # Quote the srt path so ffmpeg receives it safely
+    srt_quoted = shlex.quote(srt_path)
+
+    # Use libass style overrides to center at bottom and increase size
+    filter_str = f"subtitles={srt_quoted}:force_style='Fontsize={fontsize},Alignment=2,MarginV={margin_v}'"
 
     cmd = [
         "ffmpeg",
+        "-y",
         "-i", input_video_path,
-        "-vf", f"subtitles={srt_path}",
+        "-vf", filter_str,
         "-c:a", "copy",
         output_path
     ]
-    subprocess.run(cmd, check=True)
-    print(f"Subtitles burned into video and saved as {output_path}")
+
+    try:
+        proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        print(f"Subtitles burned into video and saved as {output_path}")
+    except CalledProcessError as e:
+        print("ffmpeg stdout:\n", e.stdout)
+        print("ffmpeg stderr:\n", e.stderr)
+        raise RuntimeError("ffmpeg failed while burning subtitles") from e
 
 def combine_videos(fps:int,base_video_path: str, video_list: list[Video], audio_path: str, output_path: str):
     """
