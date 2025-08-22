@@ -113,6 +113,29 @@ def clean_all_video():
     else:
         print(f"❌ Failed to clean all videos: {response.text}")
 
+def check_health():
+    """Check server health by probing /health endpoint."""
+    endpoint = "/health"
+    try:
+        resp = requests.get(f"{BASE_URL}{endpoint}", timeout=5)
+    except requests.RequestException as e:
+        print(f"❌ Health check failed ({endpoint}): {e}")
+        return False
+
+    if resp.status_code == 200:
+        try:
+            body = resp.json()
+        except ValueError:
+            body = resp.text
+        print(f"✅ Health OK ({endpoint}): {body}")
+        return True
+    if resp.status_code == 503:
+        print(f"⚠️ Service unavailable ({endpoint}): {resp.text}")
+        return False
+
+    print(f"❌ Health check failed ({endpoint}): {resp.status_code} {resp.text}")
+    return False
+
 def main():
     task_id = submit_video_generation("A cat playing piano in a cozy jazz club", "test-cat-piano")
     video_filename = monitor_task(task_id)

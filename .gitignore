@@ -13,6 +13,6 @@ wheels/
 *.mp4
 *.mp3
 
-generated_videos/
-final_videos/
-temp/
+generated_videos/*
+output/*
+temp/*

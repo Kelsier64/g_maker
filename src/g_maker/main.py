@@ -36,16 +36,14 @@ PATHS = {
     "GENERATED_VIDEOS_DIR": "./generated_videos",
     "FINAL_VIDEOS_DIR": "./output",
     "TEMP_DIR": "./temp",
-    "SOUND_PATH": "temp/sound.mp3",
-    "BASE_VIDEO": "temp/base_video.mp4",
-    "COMBINED_VIDEO": "temp/combined_video.mp4",
-    "BLURRED_VIDEO": "temp/blurred_video.mp4",
-    "REF_SOUND": "temp/refv_sound.mp3",
-    "SRT": "temp/script_timestamps.srt",
-    "CLOSE_JPG": "static/close.jpg",
-    "OPEN_JPG": "static/open.jpg",
-
-
+    "AUDIO_PATH": "./temp/audio.mp3",
+    "BASE_VIDEO": "./temp/base_video.mp4",
+    "COMBINED_VIDEO": "./temp/combined_video.mp4",
+    "BLURRED_VIDEO": "./temp/blurred_video.mp4",
+    "REF_AUDIO": "./temp/ref_audio.mp3",
+    "SRT": "./temp/script_timestamps.srt",
+    "CLOSE_JPG": "./static/close.jpg",
+    "OPEN_JPG": "./static/open.jpg",
 }
 
 
@@ -245,16 +243,16 @@ def gpt_request(messages,text_format=None):
 def video_pipeline(script,output_path):
 
     print("Generating audio...")
-    tts(script,output_path=PATHS["SOUND_PATH"])
+    tts(script,output_path=PATHS["AUDIO_PATH"])
 
     make_speaker.create_speaker_video(
-        mp3_path=PATHS["SOUND_PATH"],
+        mp3_path=PATHS["AUDIO_PATH"],
         closed_mouth_jpg=PATHS["CLOSE_JPG"],
         open_mouth_jpg=PATHS["OPEN_JPG"],
         output_path=PATHS["BASE_VIDEO"]
     )
     print("Generating srt...")
-    script_timestamps = whisper(PATHS["SOUND_PATH"])
+    script_timestamps = whisper(PATHS["AUDIO_PATH"])
     script_timestamps = script_timestamps.segments
 
     srt_processing.generate_srt_file(script_timestamps, output_path=PATHS["SRT"])
@@ -307,7 +305,7 @@ def video_pipeline(script,output_path):
         ))
 
     print("Combining videos into final video...")
-    video_processing.combine_videos(VIDEO_FPS, PATHS["BASE_VIDEO"], video_list, PATHS["SOUND_PATH"], PATHS["COMBINED_VIDEO"])
+    video_processing.combine_videos(VIDEO_FPS, PATHS["BASE_VIDEO"], video_list, PATHS["AUDIO_PATH"], PATHS["COMBINED_VIDEO"])
 
     print("Applying blur effect to video...")
     video_processing.blur_effect(input_path=PATHS["COMBINED_VIDEO"], output_path=PATHS["BLURRED_VIDEO"])
@@ -340,14 +338,14 @@ def init():
 
 def main_pipeline(url):
     print(f"Downloading reference video from {url}...")
-    downloader.download_yt(url, output_path=PATHS["REF_SOUND"])
+    downloader.download_yt(url, output_path=PATHS["REF_AUDIO"])
 
     print("\n")
     print("="*20)
     print("\n")
     print("Transcribing reference video...")
-    ref_text = whisper(PATHS["REF_SOUND"])
-    os.remove(PATHS["REF_SOUND"])
+    ref_text = whisper(PATHS["REF_AUDIO"])
+    os.remove(PATHS["REF_AUDIO"])
     ref_text = ref_text.text
     print(ref_text)
 
@@ -369,10 +367,14 @@ def main_pipeline(url):
 
 
     # video making loop
+
+    if not os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
+        os.makedirs(PATHS["FINAL_VIDEOS_DIR"], exist_ok=True)
     details_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], "video_details.txt")
+    
     uid = uuid4().hex
     with open(details_path, "w", encoding="utf-8") as details_file:
-        details_file.write(f"Series uid: {uid}, Source: {url}\n")
+        details_file.write(f"SourceUid: {uid}, Url: {url}\n")
 
         for index, i in enumerate(sv_scripts.scripts):
             
@@ -392,7 +394,13 @@ def main_pipeline(url):
 
 
 def main():
+
+    if not t2v_api_client.check_health():
+        print("❌ T2V API is not healthy. Exiting...")
+        return
+
     # init
+    init()
     t2v_api_client.clean_queue()
     t2v_api_client.clean_all_video()
 

@@ -1,50 +1,64 @@
 import yt_dlp
 import os
 
-def download_yt(url,output_path,format_type="mp3"):
+def download_yt(url, output_path, format_type="mp3"):
     """
-    Download YouTube video as mp3 or mp4
-    
+    Download YouTube video as mp3 or mp4 and ensure the final file matches output_path.
+
     Args:
         url: YouTube URL
+        output_path: desired final path (e.g. "temp/ref_audio.mp3")
         format_type: "mp3" or "mp4"
     """
-    # Define fixed output paths based on format type
-    
-    
-    # Create the output directory if it doesn't exist
-    output_dir = os.path.dirname(output_path)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
-    # Extract filename without extension
-    filename = os.path.splitext(os.path.basename(output_path))[0]
-    
+    base_no_ext = os.path.splitext(output_path)[0]
+    outtmpl = base_no_ext + ".%(ext)s"
+
     if format_type == "mp3":
         ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',  # Standard quality
+            "format": "bestaudio/best",
+            "postprocessors": [{
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
             }],
-            'outtmpl': filename,  # yt-dlp will add extension automatically
-            'keepvideo': False,
-            'noplaylist': True,
-            'quiet': True,
+            "outtmpl": outtmpl,
+            "keepvideo": False,
+            "noplaylist": True,
+            "quiet": True,
         }
     else:  # mp4
         ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-            'outtmpl': filename,
-            'noplaylist': True,
-            'quiet': True,
+            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "outtmpl": outtmpl,
+            "noplaylist": True,
+            "quiet": True,
         }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        return output_path
+            info = ydl.extract_info(url, download=True)
+
+        # Determine expected final path
+        if format_type == "mp3":
+            final_path = base_no_ext + ".mp3"
+        else:
+            # try to infer extension from info; default to mp4
+            ext = (info.get("ext") if isinstance(info, dict) else None) or "mp4"
+            final_path = base_no_ext + f".{ext}"
+
+        if os.path.exists(final_path):
+            return final_path
+
+        # fallback: find any file that starts with the base name
+        base_name = os.path.basename(base_no_ext)
+        for fname in os.listdir(os.path.dirname(output_path) or "."):
+            if fname.startswith(base_name):
+                return os.path.join(os.path.dirname(output_path) or ".", fname)
+
+        return None
     except Exception as e:
         print(f"An error occurred: {e}")
         return None
