@@ -370,14 +370,13 @@ def main_pipeline(url):
     details_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], "video_details.txt")
     uid = uuid4().hex
 
-    with open(details_path, "w", encoding="utf-8") as details_file:
-        details_file.write(f"SourceUid: {uid}, Url: {url}\n")
+    with open(details_path, "a", encoding="utf-8") as details_file:
+        details_file.write(f"\nSourceUid: {uid}, Url: {url}\n")
 
         for index, i in enumerate(sv_scripts.scripts):
             
             print(f"Title: {i.title}, Script: {i.script}")
             print("="*20)
-            init()
 
             output_file = os.path.join(PATHS["FINAL_VIDEOS_DIR"], f"{uid}_{index}.mp4")
             
