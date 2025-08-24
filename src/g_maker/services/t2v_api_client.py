@@ -7,14 +7,8 @@ def get_queue_status():
     response = requests.get(f"{BASE_URL}/queue/status")
     if response.status_code == 200:
         status = response.json()
-        print("📊 Queue Status:")
-        print(f"  Queue size: {status['queue_size']}/{status['max_queue_size']}")
-        print(f"  Processing workers: {status['processing_workers']}")
-        print(f"  Task counts: {status['task_counts']}")
-        print(f"  Queue available: {status['queue_available']}")
         return status
     else:
-        print(f"❌ Failed to get queue status: {response.text}")
         return None
 
 def submit_video_generation(prompt, task_name=None, fps=16, num_frames=17, sample_steps=30):
@@ -30,21 +24,15 @@ def submit_video_generation(prompt, task_name=None, fps=16, num_frames=17, sampl
         "fps": fps,
     }
     
-    print(f"🎬 Submitting: {prompt[:50]}...")
-    
     response = requests.post(f"{BASE_URL}/generate", json=request_data)
     
     if response.status_code == 200:
         result = response.json()
         task_id = result["task_id"]
-        print(f"✅ Task submitted: {task_id}")
-        print(f"📋 Status: {result['message']}")
         return task_id
     elif response.status_code == 503:
-        print(f"⚠️ Server busy: {response.json().get('detail', 'Unknown error')}")
         return None
     else:
-        print(f"❌ Failed to submit: {response.text}")
         return None
     
 def download_video(filename, output_path=None):
@@ -59,38 +47,27 @@ def download_video(filename, output_path=None):
             os.makedirs(dir_name, exist_ok=True)
         with open(local_filename, "wb") as f:
             f.write(response.content)
-        print(f"✅ Downloaded: {local_filename}")
         return True
     else:
-        print(f"❌ Failed to download {filename}: {response.text}")
         return False
 
 def monitor_task(task_id, poll_interval=10):
     """Monitor a task until completion"""
-    print(f"👀 Monitoring task: {task_id}")
     
     while True:
         response = requests.get(f"{BASE_URL}/status/{task_id}")
         if response.status_code != 200:
-            print(f"❌ Failed to get task status: {response.text}")
             break
             
         status = response.json()
         status_str = status['status']
         message = status['message']
         
-        if status.get('queue_position'):
-            print(f"📊 {status_str.upper()}: {message} (Position: {status['queue_position']})")
-        else:
-            print(f"📊 {status_str.upper()}: {message}")
-        
         if status_str == 'completed':
             video_filename = status.get('video_filename')
-            print(f"✅ Video completed: {video_filename}")
             return video_filename
         elif status_str == 'failed':
             error = status.get('error', 'Unknown error')
-            print(f"❌ Task failed: {error}")
             break
         
         time.sleep(poll_interval)
@@ -101,17 +78,17 @@ def clean_queue():
     """Clean the video generation queue"""
     response = requests.get(f"{BASE_URL}/queue/clean")
     if response.status_code == 200:
-        print("✅ Queue cleaned successfully.")
+        pass
     else:
-        print(f"❌ Failed to clean queue: {response.text}")
+        pass
 
 def clean_all_video():
     """Clean all video files"""
     response = requests.get(f"{BASE_URL}/videos/clean")
     if response.status_code == 200:
-        print("✅ All videos cleaned successfully.")
+        pass
     else:
-        print(f"❌ Failed to clean all videos: {response.text}")
+        pass
 
 def check_health():
     """Check server health by probing /health endpoint."""
@@ -119,7 +96,6 @@ def check_health():
     try:
         resp = requests.get(f"{BASE_URL}{endpoint}", timeout=5)
     except requests.RequestException as e:
-        print(f"❌ Health check failed ({endpoint}): {e}")
         return False
 
     if resp.status_code == 200:
@@ -127,13 +103,10 @@ def check_health():
             body = resp.json()
         except ValueError:
             body = resp.text
-        print(f"✅ Health OK ({endpoint}): {body}")
         return True
     if resp.status_code == 503:
-        print(f"⚠️ Service unavailable ({endpoint}): {resp.text}")
         return False
 
-    print(f"❌ Health check failed ({endpoint}): {resp.status_code} {resp.text}")
     return False
 
 def main():

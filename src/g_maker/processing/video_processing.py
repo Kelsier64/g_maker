@@ -33,8 +33,6 @@ def burn_subtitle(input_video_path: str, srt_path: str, output_path: str, fontsi
         proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         print(f"Subtitles burned into video and saved as {output_path}")
     except CalledProcessError as e:
-        print("ffmpeg stdout:\n", e.stdout)
-        print("ffmpeg stderr:\n", e.stderr)
         raise RuntimeError("ffmpeg failed while burning subtitles") from e
 
 def combine_videos(fps:int,base_video_path: str, video_list: list[Video], audio_path: str, output_path: str):
@@ -92,9 +90,6 @@ def combine_videos(fps:int,base_video_path: str, video_list: list[Video], audio_
     try:
         proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     except subprocess.CalledProcessError as e:
-        # show ffmpeg output for debugging, then raise a clearer error
-        print("ffmpeg stdout:\n", e.stdout)
-        print("ffmpeg stderr:\n", e.stderr)
         raise RuntimeError("ffmpeg failed, see stderr above") from e
 
 def blur_effect(input_path: str, output_path: str):
@@ -123,6 +118,4 @@ def blur_effect(input_path: str, output_path: str):
         proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         print(f"Processed video saved as {output_path}")
     except subprocess.CalledProcessError as e:
-        print("ffmpeg stdout:\n", e.stdout)
-        print("ffmpeg stderr:\n", e.stderr)
         raise RuntimeError("ffmpeg failed while applying blurred background/overlay") from e

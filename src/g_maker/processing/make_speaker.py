@@ -94,7 +94,7 @@ def create_speaker_video(mp3_path: str, closed_mouth_jpg: str, open_mouth_jpg: s
             output_path
         ]
         
-        subprocess.run(ffmpeg_cmd, check=True)
+        subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 # Example usage
 if __name__ == "__main__":
