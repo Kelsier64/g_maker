@@ -82,7 +82,6 @@ def srt_to_ass(srt_file_path, output_path, style_dict=None):
         style.marginl = style_dict.get('marginl', 0)
         style.marginr = style_dict.get('marginr', 0)
         style.marginv = style_dict.get('marginv', 30)
-        
         # Add the style to the subtitle file
         subs.styles["Default"] = style
         

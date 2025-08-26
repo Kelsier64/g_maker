@@ -8,7 +8,7 @@ if __name__ == "__main__":
             'fontname': 'Arial',
             'fontsize': 10,
             'primarycolour': Color(0,255,0),
-            'outlinecolour': Color(0, 255, 0),  # White outline
+            'outlinecolour': Color(0, 0, 255),  # White outline
             'bold': True,
             'outline': 3,
             'shadow': 2,
