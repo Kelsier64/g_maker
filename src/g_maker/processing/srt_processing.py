@@ -1,6 +1,7 @@
 import os
 import pysubs2
 import random
+from g_maker.config import WHISPER_MODE
 
 def format_timestamp(seconds):
     """Convert seconds to SRT timestamp format (00:00:00,000)"""
@@ -11,7 +12,7 @@ def format_timestamp(seconds):
     
     return f"{hours:02d}:{minutes:02d}:{int(seconds_remainder):02d},{milliseconds:03d}"
 
-def generate_srt_file(segments, output_path):
+def generate_srt_file(timestamps, output_path):
 
     """
     Generate an SRT subtitle file from transcript segments.
@@ -29,11 +30,14 @@ def generate_srt_file(segments, output_path):
         os.makedirs(output_dir)
     
     with open(output_path, "w", encoding="utf-8") as f:
-        for i, segment in enumerate(segments, start=1):
+        for i, segment in enumerate(timestamps, start=1):
             start_time = segment.start
             end_time = segment.end
-            text = segment.text.strip()
-            
+            if WHISPER_MODE == "word":
+                text = segment.word
+            elif WHISPER_MODE == "segment":
+                text = segment.text.strip()
+
             # Format timestamps as SRT format (00:00:00,000)
             start_formatted = format_timestamp(start_time)
             end_formatted = format_timestamp(end_time)

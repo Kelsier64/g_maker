@@ -8,20 +8,16 @@ from pydub import AudioSegment
 from dotenv import load_dotenv
 
 from g_maker.utils.terminal import print_status, ProgressBar, SpinnerThread
-
+from g_maker.config import VOICE_ID,WHISPER_MODE
 load_dotenv()
 
 # AI API Keys and Endpoints
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
-GPT4O_API_KEY = "2096af94eab44b0bb910def970ad467c"
-GPT4O_OPENAI_ENDPOINT = "https://hsh2024.openai.azure.com"
+GPT4O_API_KEY = os.getenv("GPT4O_API_KEY")
+GPT4O_OPENAI_ENDPOINT = os.getenv("GPT4O_OPENAI_ENDPOINT")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-# Voice and processing settings
-VOICE_ID = "MFZUKuGQUsGJPQjTS4wC"
-WHISPER_MODE = "word"
 
 
 
