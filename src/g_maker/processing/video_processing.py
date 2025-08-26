@@ -3,7 +3,7 @@ from g_maker.models import Video
 import shlex
 from subprocess import CalledProcessError
 
-def burn_subtitle(input_video_path: str, srt_path: str, output_path: str, fontsize: int | None = None, margin_v: int | None = None):
+def burn_srt_subtitle(input_video_path: str, srt_path: str, output_path: str, fontsize: int | None = None, margin_v: int | None = None):
     """
     Burn subtitles into a vertical (9:16) short-form video.
     Defaults tuned for ~1080x1920: larger fontsize and bottom margin.
@@ -34,6 +34,35 @@ def burn_subtitle(input_video_path: str, srt_path: str, output_path: str, fontsi
         print(f"Subtitles burned into video and saved as {output_path}")
     except CalledProcessError as e:
         raise RuntimeError("ffmpeg failed while burning subtitles") from e
+
+def burn_ass_subtitle(input_video_path: str, ass_path: str, output_path: str):
+    """
+    Burn ASS subtitles into a video.
+    Uses ASS file which contains all styling information.
+    """
+
+    # Quote the ass path so ffmpeg receives it safely
+    ass_quoted = shlex.quote(ass_path)
+
+    # Use ass filter for better styling support
+    filter_str = f"ass={ass_quoted}"
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i", input_video_path,
+        "-vf", filter_str,
+        "-c:a", "copy",
+        output_path
+    ]
+
+    try:
+        proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        print(f"ASS subtitles burned into video and saved as {output_path}")
+    except CalledProcessError as e:
+        raise RuntimeError("ffmpeg failed while burning ASS subtitles") from e
+
+
 
 def combine_videos(fps:int,base_video_path: str, video_list: list[Video], audio_path: str, output_path: str):
     """

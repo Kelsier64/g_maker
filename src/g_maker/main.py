@@ -18,7 +18,8 @@ from g_maker.processing import make_speaker
 from g_maker.processing import video_processing
 from g_maker.processing import srt_processing
 from g_maker.input import downloader
-from g_maker.models import Prompt,PromptList,Video,Script,ScriptList
+from g_maker.models import Prompt,PromptList,Video,Script,ScriptList,Color
+
 
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -45,6 +46,7 @@ PATHS = {
     "BLURRED_VIDEO": "./temp/blurred_video.mp4",
     "REF_AUDIO": "./temp/ref_audio.mp3",
     "SRT": "./temp/script_timestamps.srt",
+    "ASS": "./temp/subtitles.ass",
     "CLOSE_JPG": "./static/close.jpg",
     "OPEN_JPG": "./static/open.jpg",
 }
@@ -404,6 +406,21 @@ def video_pipeline(script,output_path):
     script_timestamps = script_timestamps.segments
 
     srt_processing.generate_srt_file(script_timestamps, output_path=PATHS["SRT"])
+
+
+    style={
+        'fontname': 'Arial',
+        'fontsize': 10,
+        'primarycolour': Color(0, 0, 0),  # Black text
+        'outlinecolour': Color(255, 255, 255),  # White outline
+        'bold': True,
+        'outline': 3,
+        'shadow': 2,
+        'alignment': 2,  # Bottom center
+        'marginv': 50
+    }
+    
+    srt_processing.srt_to_ass(PATHS["SRT"], output_path=PATHS["ASS"], style_dict=style)
     print_status(f"Subtitles generated with {len(script_timestamps)} segments", "SUCCESS")
 
     # Step 4: Generate video prompts
@@ -486,7 +503,7 @@ def video_pipeline(script,output_path):
 
     spinner = SpinnerThread("Burning subtitles...")
     spinner.start()
-    video_processing.burn_subtitle(PATHS["BLURRED_VIDEO"], PATHS["SRT"], output_path=output_path)
+    video_processing.burn_ass_subtitle(PATHS["BLURRED_VIDEO"], PATHS["ASS"], output_path=output_path)
     spinner.stop()
     print_status(f"Final video saved: {output_path}", "SUCCESS")
 
