@@ -8,29 +8,29 @@ ScriptType: v4.00+
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,DejaVu Sans,10,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,2,0,2,0,0,50,1
+Style: Default,DejaVu Sans,10,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,1,0,2,0,0,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:03.20,Default,,0,0,0,,Did you know there's more than one dark galaxy?
-Dialogue: 0,0:00:03.20,0:00:11.60,Default,,0,0,0,,Last year, China's FAST telescope spotted FAST J01399P4328, another hydrogen cloud with
-Dialogue: 0,0:00:11.60,0:00:13.56,Default,,0,0,0,,almost no stars.
-Dialogue: 0,0:00:13.56,0:00:17.48,Default,,0,0,0,,It's just over a million light years away, shaped like an S.
-Dialogue: 0,0:00:17.48,0:00:24.64,Default,,0,0,0,,Its total mass is around 5 billion suns, but the stars make up less than 700,000 suns.
-Dialogue: 0,0:00:24.64,0:00:28.52,Default,,0,0,0,,Ordinary matter is just 1 and 50th of its mass.
-Dialogue: 0,0:00:28.52,0:00:31.04,Default,,0,0,0,,In other words, it's a dark matter monster.
-Dialogue: 0,0:00:31.04,0:00:34.28,Default,,0,0,0,,Astronomers even have a name for these faint beasts.
-Dialogue: 0,0:00:34.28,0:00:36.04,Default,,0,0,0,,Low surface brightness galaxies.
-Dialogue: 0,0:00:36.04,0:00:41.96,Default,,0,0,0,,They're so dim, even their brightest parts are darker than our night sky.
-Dialogue: 0,0:00:41.96,0:00:43.96,Default,,0,0,0,,Most are tiny dwarfs.
-Dialogue: 0,0:00:43.96,0:00:49.36,Default,,0,0,0,,Once a cloud tops a billion solar masses, it usually fires up star formation, except
-Dialogue: 0,0:00:49.36,0:00:50.92,Default,,0,0,0,,these rebels.
-Dialogue: 0,0:00:50.92,0:00:52.32,Default,,0,0,0,,Why care?
-Dialogue: 0,0:00:52.32,0:00:56.16,Default,,0,0,0,,Because dark galaxies might solve the missing satellites problem.
-Dialogue: 0,0:00:56.16,0:00:59.42,Default,,0,0,0,,We expect hundreds of small companions around the Milky Way.
-Dialogue: 0,0:00:59.42,0:01:01.04,Default,,0,0,0,,We only see a dozen.
-Dialogue: 0,0:01:01.04,0:01:04.12,Default,,0,0,0,,Could most be hidden, starless clouds?
-Dialogue: 0,0:01:04.12,0:01:06.92,Default,,0,0,0,,These dark dwarfs are local fossils.
-Dialogue: 0,0:01:06.92,0:01:09.96,Default,,0,0,0,,Galaxies frozen in time since the early universe.
-Dialogue: 0,0:01:09.96,0:01:13.02,Default,,0,0,0,,Crazy to think we're living next to these ancient relics.
-Dialogue: 0,0:01:13.02,0:01:15.04,Default,,0,0,0,,Share this if you want more space secrets.
+Dialogue: 0,0:00:00.00,0:00:03.20,Default,,0,0,0,,{\c&H7FFFD4&}{\fad(300,300)}Did you know there's more than one dark galaxy?
+Dialogue: 0,0:00:03.20,0:00:11.60,Default,,0,0,0,,{\c&H00FFFF&}{\fad(300,300)}Last year, China's FAST telescope spotted FAST J01399P4328, another hydrogen cloud with
+Dialogue: 0,0:00:11.60,0:00:13.56,Default,,0,0,0,,{\c&HE0B0FF&}{\fad(300,300)}almost no stars.
+Dialogue: 0,0:00:13.56,0:00:17.48,Default,,0,0,0,,{\c&HE0B0FF&}{\fad(300,300)}It's just over a million light years away, shaped like an S.
+Dialogue: 0,0:00:17.48,0:00:24.64,Default,,0,0,0,,{\c&HAAFF00&}{\fad(300,300)}Its total mass is around 5 billion suns, but the stars make up less than 700,000 suns.
+Dialogue: 0,0:00:24.64,0:00:28.52,Default,,0,0,0,,{\c&H7C7C00&}{\fad(300,300)}Ordinary matter is just 1 and 50th of its mass.
+Dialogue: 0,0:00:28.52,0:00:31.04,Default,,0,0,0,,{\c&HAAFF00&}{\fad(300,300)}In other words, it's a dark matter monster.
+Dialogue: 0,0:00:31.04,0:00:34.28,Default,,0,0,0,,{\c&H00FF7F&}{\fad(300,300)}Astronomers even have a name for these faint beasts.
+Dialogue: 0,0:00:34.28,0:00:36.04,Default,,0,0,0,,{\c&H7C7C00&}{\fad(300,300)}Low surface brightness galaxies.
+Dialogue: 0,0:00:36.04,0:00:41.96,Default,,0,0,0,,{\c&H7C7C00&}{\fad(300,300)}They're so dim, even their brightest parts are darker than our night sky.
+Dialogue: 0,0:00:41.96,0:00:43.96,Default,,0,0,0,,{\c&H00FFFF&}{\fad(300,300)}Most are tiny dwarfs.
+Dialogue: 0,0:00:43.96,0:00:49.36,Default,,0,0,0,,{\c&H00FF7F&}{\fad(300,300)}Once a cloud tops a billion solar masses, it usually fires up star formation, except
+Dialogue: 0,0:00:49.36,0:00:50.92,Default,,0,0,0,,{\c&HFF00FF&}{\fad(300,300)}these rebels.
+Dialogue: 0,0:00:50.92,0:00:52.32,Default,,0,0,0,,{\c&H00FFFF&}{\fad(300,300)}Why care?
+Dialogue: 0,0:00:52.32,0:00:56.16,Default,,0,0,0,,{\c&HAAFF00&}{\fad(300,300)}Because dark galaxies might solve the missing satellites problem.
+Dialogue: 0,0:00:56.16,0:00:59.42,Default,,0,0,0,,{\c&HFF00FF&}{\fad(300,300)}We expect hundreds of small companions around the Milky Way.
+Dialogue: 0,0:00:59.42,0:01:01.04,Default,,0,0,0,,{\c&H7FFFD4&}{\fad(300,300)}We only see a dozen.
+Dialogue: 0,0:01:01.04,0:01:04.12,Default,,0,0,0,,{\c&H00FFFF&}{\fad(300,300)}Could most be hidden, starless clouds?
+Dialogue: 0,0:01:04.12,0:01:06.92,Default,,0,0,0,,{\c&H7FFFD4&}{\fad(300,300)}These dark dwarfs are local fossils.
+Dialogue: 0,0:01:06.92,0:01:09.96,Default,,0,0,0,,{\c&H7FFFD4&}{\fad(300,300)}Galaxies frozen in time since the early universe.
+Dialogue: 0,0:01:09.96,0:01:13.02,Default,,0,0,0,,{\c&H00FF7F&}{\fad(300,300)}Crazy to think we're living next to these ancient relics.
+Dialogue: 0,0:01:13.02,0:01:15.04,Default,,0,0,0,,{\c&H00FF7F&}{\fad(300,300)}Share this if you want more space secrets.

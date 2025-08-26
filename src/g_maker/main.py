@@ -434,7 +434,7 @@ def video_pipeline(script,output_path):
         "marginv": 50,     # vertical margin from bottom/top
     }
 
-    srt_processing.srt_to_ass(PATHS["SRT"], style_dict=style, output_path=PATHS["ASS"])
+    srt_processing.srt_to_ass(PATHS["SRT"], style_dict=style, output_path=PATHS["ASS"], effects=["fade", "random_colors"])
     print_status(f"Subtitles generated with {len(script_timestamps)} segments", "SUCCESS")
 
     # Step 4: Generate video prompts
