@@ -1,7 +1,7 @@
 import os
 import pysubs2
 import random
-from g_maker.config import WHISPER_MODE
+from g_maker.config import STT_MODE
 
 def format_timestamp(seconds):
     """Convert seconds to SRT timestamp format (00:00:00,000)"""
@@ -44,9 +44,9 @@ def generate_srt_file(timestamps, output_path):
             prev_end_time = end_time
 
 
-            if WHISPER_MODE == "word":
+            if STT_MODE == "word":
                 text = segment.word
-            elif WHISPER_MODE == "segment":
+            elif STT_MODE == "segment":
                 text = segment.text.strip()
 
             # Format timestamps as SRT format (00:00:00,000)
@@ -72,13 +72,14 @@ def generate_srt_file_11(words, output_path):
     subtitle_number = 1
     
     # Filter out spacing elements and group words, excluding commas and periods
-    word_data = [w for w in words if w.get('type') == 'word' and w.get('text') not in [',', '.']]
+    word_data = [w for w in words if w.get('type') == 'word' ]
     
     # Always use 1 word per subtitle
     for word in word_data:
         start_time = word['start']
         end_time = word['end']
-        text = word['text']
+        t: str = word['text']
+        text = t.rstrip('.,')
         
         start_formatted = format_timestamp(start_time)
         end_formatted = format_timestamp(end_time)
@@ -94,7 +95,6 @@ def generate_srt_file_11(words, output_path):
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(srt_content))
     
-    print(f"SRT file created: {output_path}")
 
 
 def apply_fade_effects(subs, fade_in_ms=100, fade_out_ms=100, min_duration_ms=200):

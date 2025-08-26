@@ -4,8 +4,8 @@ Your task: generate a list of video generation prompts for a text-to-video syste
 Rules:
 1. Only create a prompt when there is a **significant scene or visual change** — NOT for every dialogue line.
 2. Ensure prompts are **aligned with transcript timings** and only capture **meaningful visual transitions**.
-3. videos don't need to stick together.
-4. dont make a video while the previous one is in duration.
+3. Videos can be independent segments, but if the interval between videos is very small, they can be concatenated together.
+4. dont make another video while the previous one is in duration.
 5. dont write any words on the image, just describe the scene.
 6. the video generation model is poor ,so keep the prompts simple and focused.
 7. no timeline graphic or chart or other overlays.

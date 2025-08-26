@@ -71,7 +71,7 @@ def video_pipeline(script,output_path):
     }
 
     srt_processing.srt_to_ass(PATHS["SRT"], style_dict=style, output_path=PATHS["ASS"], effects=["popup", "random_colors"])
-    terminal.print_status(f"Subtitles generated with {len(script_timestamps)} segments", "SUCCESS")
+    terminal.print_status(f"Subtitles generated", "SUCCESS")
 
     # Step 4: Generate video prompts
     terminal.print_status("Step 4/7: Generating video prompts", "PROCESSING")
