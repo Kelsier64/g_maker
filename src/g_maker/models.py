@@ -20,8 +20,5 @@ class Script(BaseModel):
 class ScriptList(BaseModel):
     scripts: list[Script]
 
-class Color(BaseModel):
-    r: int
-    g: int
-    b: int
-    a: int = 0
+
+    

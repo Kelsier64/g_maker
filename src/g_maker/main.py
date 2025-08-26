@@ -18,8 +18,8 @@ from g_maker.processing import make_speaker
 from g_maker.processing import video_processing
 from g_maker.processing import srt_processing
 from g_maker.input import downloader
-from g_maker.models import Prompt,PromptList,Video,Script,ScriptList,Color
-
+from g_maker.models import Prompt,PromptList,Video,Script,ScriptList
+from pysubs2 import Color
 
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
