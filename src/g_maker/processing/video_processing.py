@@ -58,7 +58,7 @@ def burn_ass_subtitle(input_video_path: str, ass_path: str, output_path: str):
 
     try:
         proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        print(f"ASS subtitles burned into video and saved as {output_path}")
+
     except CalledProcessError as e:
         raise RuntimeError("ffmpeg failed while burning ASS subtitles") from e
 

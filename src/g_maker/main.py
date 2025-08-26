@@ -535,7 +535,6 @@ def init():
     if files_removed > 0:
         print_status(f"Cleaned {files_removed} temporary files from {dirs_cleaned} directories", "INFO")
 
-
 def main_pipeline(url):
     print_separator("CONTENT PROCESSING PIPELINE")
     
