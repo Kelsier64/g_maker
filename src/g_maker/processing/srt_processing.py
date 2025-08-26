@@ -59,7 +59,32 @@ def srt_to_ass(srt_file_path, output_path, style_dict=None):
     if style_dict:
         # Create a custom style
         style = pysubs2.SSAStyle()
-        
+
+
+        example_style = {
+            "fontname": "Helvetica",
+            "fontsize": 28,
+            "primarycolor": pysubs2.Color(255, 255, 255),  # white
+            "secondarycolor": pysubs2.Color(255, 255, 0),  # yellow
+            "outlinecolor": pysubs2.Color(0, 0, 0),        # black
+            "backcolor": pysubs2.Color(0, 0, 0),
+            "bold": True,
+            "italic": False,
+            "underline": False,
+            "strikeout": False,
+            "scalex": 100,
+            "scaley": 100,
+            "spacing": 0,
+            "angle": 0,
+            "borderstyle": 1,
+            "outline": 3,
+            "shadow": 0,
+            "alignment": 2,   # bottom-center
+            "marginl": 10,
+            "marginr": 10,
+            "marginv": 50,    # vertical margin from bottom/top
+        }
+
         # Apply style parameters from dictionary with defaults
         style.fontname = style_dict.get('fontname', 'Arial')
         style.fontsize = style_dict.get('fontsize', 10)
@@ -81,8 +106,9 @@ def srt_to_ass(srt_file_path, output_path, style_dict=None):
         style.alignment = style_dict.get('alignment', 2)  # Bottom center
         style.marginl = style_dict.get('marginl', 0)
         style.marginr = style_dict.get('marginr', 0)
-        style.marginv = style_dict.get('marginv', 50)
-        # Add the style to the subtitle file
+
+        
+
         subs.styles["Default"] = style
         
         # Apply the style to all lines
