@@ -13,7 +13,7 @@ from g_maker.input import downloader
 from g_maker.models import Prompt,PromptList,Video,Script,ScriptList
 from g_maker.utils import terminal
 from g_maker.prompts import PROMPT_GENERATE_VIDEO, PROMPT_SHORT_VIDEO, PROMPT_CONTENT_CLEAN
-from g_maker.config import PATHS, VIDEO_FPS,WHISPER_MODE
+from g_maker.config import PATHS, VIDEO_FPS,STT_MODE
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
@@ -39,10 +39,13 @@ def video_pipeline(script,output_path):
     
     # Step 3: Generate SRT
     terminal.print_status("Step 3/7: Generating subtitles", "PROCESSING")
-    script_timestamps = ai_api_clients.whisper_timestamp(PATHS["AUDIO_PATH"])
+    if STT_MODE == "segment":
+        script_timestamps = ai_api_clients.whisper_timestamp(PATHS["AUDIO_PATH"])
+        srt_processing.generate_srt_file(script_timestamps, output_path=PATHS["SRT"])
 
-
-    srt_processing.generate_srt_file(script_timestamps, output_path=PATHS["SRT"])
+    elif STT_MODE == "word":
+        response_11 = ai_api_clients.stt_elevenlabs(PATHS["AUDIO_PATH"])
+        srt_processing.generate_srt_file_11(response_11["words"], output_path=PATHS["SRT"])
 
     style={
         "name": "Subtitle",
@@ -73,12 +76,22 @@ def video_pipeline(script,output_path):
     # Step 4: Generate video prompts
     terminal.print_status("Step 4/7: Generating video prompts", "PROCESSING")
     script_for_ai = []
-    for segment in script_timestamps:
-        script_for_ai.append({
-            "start": round(segment.start,1),
-            "end": round(segment.end,1),
-            "text": segment.word if WHISPER_MODE == "word" else segment.text.strip()
+    if STT_MODE == "segment":
+        for segment in script_timestamps:
+            script_for_ai.append({
+                "start": round(segment.start,1),
+                "end": round(segment.end,1),
+                "text": segment.text.strip()
         })
+            
+    elif STT_MODE=="word":
+        for word in response_11["words"]:
+            script_for_ai.append({
+                "start": round(word["start"],1),
+                "end": round(word["end"],1),
+                "text": word["text"].strip()
+            })
+
     msg =[
         {"role": "system", "content": PROMPT_GENERATE_VIDEO},
         {"role": "user","content": script_for_ai.__str__()}

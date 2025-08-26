@@ -1,7 +1,7 @@
 VIDEO_FPS = 16
 VOICE_ID = "MFZUKuGQUsGJPQjTS4wC"
 VOICE_ID = "MFZUKuGQUsGJPQjTS4wC"
-WHISPER_MODE = "word"
+STT_MODE = "word" # segment
 PATHS = {
     "GENERATED_VIDEOS_DIR": "./generated_videos",
     "FINAL_VIDEOS_DIR": "./output",

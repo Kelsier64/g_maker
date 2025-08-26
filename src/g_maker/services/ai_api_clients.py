@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import requests
 
 from g_maker.utils.terminal import print_status, ProgressBar, SpinnerThread
-from g_maker.config import VOICE_ID,WHISPER_MODE
+from g_maker.config import VOICE_ID,STT_MODE
 load_dotenv()
 
 # AI API Keys and Endpoints
@@ -140,14 +140,14 @@ def whisper_timestamp(path):
                 file=open(path, "rb"),
                 model="whisper",
                 response_format="verbose_json",
-                timestamp_granularities=[WHISPER_MODE],
+                timestamp_granularities=[STT_MODE],
             )
             spinner.stop()
             print_status("Transcription completed", "SUCCESS")
 
-            if WHISPER_MODE == "word":
+            if STT_MODE == "word":
                 return transcribe.words
-            if WHISPER_MODE == "segment":
+            if STT_MODE == "segment":
                 return transcribe.segments
             
         except Exception as e:
