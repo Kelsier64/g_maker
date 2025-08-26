@@ -411,10 +411,10 @@ def video_pipeline(script,output_path):
     style={
         'fontname': 'Arial',
         'fontsize': 10,
-        'primarycolour': Color(0, 0, 0),  # Black text
-        'outlinecolour': Color(255, 255, 255),  # White outline
+        'primarycolour': Color(255, 255, 255),  # White text
+        'outlinecolour': Color(0, 0, 0),  # Black outline
         'bold': True,
-        'outline': 3,
+        'outline': 2,
         'shadow': 2,
         'alignment': 2,  # Bottom center
         'marginv': 50

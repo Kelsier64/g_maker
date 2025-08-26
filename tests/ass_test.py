@@ -7,10 +7,10 @@ if __name__ == "__main__":
     custom_style = {
             'fontname': 'Arial',
             'fontsize': 10,
-            'primarycolour': Color(0,255,0),
-            'outlinecolour': Color(0, 0, 255),  # White outline
+            'primarycolor': Color(0,0,0),
+            'outlinecolor': Color(255, 255, 255),  
             'bold': True,
-            'outline': 3,
+            'outline': 1,
             'shadow': 2,
             'alignment': 2,  # Bottom center
             'marginv': 50

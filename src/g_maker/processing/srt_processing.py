@@ -62,11 +62,11 @@ def srt_to_ass(srt_file_path, output_path, style_dict=None):
         
         # Apply style parameters from dictionary with defaults
         style.fontname = style_dict.get('fontname', 'Arial')
-        style.fontsize = style_dict.get('fontsize', 20)
-        style.primarycolour = style_dict.get('primarycolour', pysubs2.Color(255, 255, 255))  # White
-        style.secondarycolour = style_dict.get('secondarycolour', pysubs2.Color(255, 0, 0))  # Red
-        style.outlinecolour = style_dict.get('outlinecolour', pysubs2.Color(0, 0, 0))  # Black
-        style.backcolour = style_dict.get('backcolour', pysubs2.Color(0, 0, 0))  # Black
+        style.fontsize = style_dict.get('fontsize', 10)
+        style.primarycolor = style_dict.get('primarycolor', pysubs2.Color(255, 255,255))
+        style.secondarycolor = style_dict.get('secondarycolor', pysubs2.Color(255, 0, 0))  # Red
+        style.outlinecolor = style_dict.get('outlinecolor', pysubs2.Color(0, 0, 0))  # Black
+        style.backcolor = style_dict.get('backcolor', pysubs2.Color(0, 0, 0))  # Black
         style.bold = style_dict.get('bold', True)
         style.italic = style_dict.get('italic', False)
         style.underline = style_dict.get('underline', False)
@@ -81,7 +81,7 @@ def srt_to_ass(srt_file_path, output_path, style_dict=None):
         style.alignment = style_dict.get('alignment', 2)  # Bottom center
         style.marginl = style_dict.get('marginl', 0)
         style.marginr = style_dict.get('marginr', 0)
-        style.marginv = style_dict.get('marginv', 30)
+        style.marginv = style_dict.get('marginv', 50)
         # Add the style to the subtitle file
         subs.styles["Default"] = style
         

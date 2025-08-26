@@ -31,7 +31,7 @@ def burn_srt_subtitle(input_video_path: str, srt_path: str, output_path: str, fo
 
     try:
         proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        print(f"Subtitles burned into video and saved as {output_path}")
+        
     except CalledProcessError as e:
         raise RuntimeError("ffmpeg failed while burning subtitles") from e
 
@@ -145,6 +145,6 @@ def blur_effect(input_path: str, output_path: str):
 
     try:
         proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        print(f"Processed video saved as {output_path}")
+        
     except subprocess.CalledProcessError as e:
         raise RuntimeError("ffmpeg failed while applying blurred background/overlay") from e
