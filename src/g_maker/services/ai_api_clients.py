@@ -6,6 +6,7 @@ import sys
 from openai import AzureOpenAI, OpenAI
 from pydub import AudioSegment
 from dotenv import load_dotenv
+import requests
 
 from g_maker.utils.terminal import print_status, ProgressBar, SpinnerThread
 from g_maker.config import VOICE_ID,WHISPER_MODE
@@ -126,8 +127,6 @@ def whisper_text(path):
 
         return " ".join(transcripts)
 
-
-
 def whisper_timestamp(path):
     print_status("Starting audio transcription", "PROCESSING")
     max_size_mb = 24  # Azure OpenAI Whisper limit is 24MB per file
@@ -156,7 +155,42 @@ def whisper_timestamp(path):
             print_status(f"Transcription failed: {e}", "ERROR")
             raise
 
-
+def stt_elevenlabs(path):
+    """
+    Transcribe audio using ElevenLabs Speech-to-Text API.
+    """
+    
+    print_status("Starting ElevenLabs speech-to-text", "PROCESSING")
+    
+    url = "https://api.elevenlabs.io/v1/speech-to-text"
+    
+    headers = {
+        "xi-api-key": ELEVENLABS_API_KEY
+    }
+    
+    spinner = SpinnerThread("Transcribing with ElevenLabs...")
+    spinner.start()
+    
+    try:
+        with open(path, "rb") as audio_file:
+            files = {
+                "file": (os.path.basename(path), audio_file, "audio/mpeg"),
+                "model_id": (None, "scribe_v1")
+            }
+            
+            response = requests.post(url, headers=headers, files=files)
+            response.raise_for_status()
+            
+        spinner.stop()
+        result = response.json()
+        print_status("ElevenLabs transcription completed", "SUCCESS")
+        
+        # Return the full response to access both text and word-level data
+        return result
+    except Exception as e:
+        spinner.stop()
+        print_status(f"ElevenLabs transcription failed: {e}", "ERROR")
+        raise
 
 def tts(text, output_path="./output.mp3"):
     from ..utils.terminal import print_status, SpinnerThread

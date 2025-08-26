@@ -47,6 +47,20 @@ def apply_random_colors(subs):
         line.text = color_tag + line.text
 
 
+def apply_popup_effect(subs, scale_duration_ms=200):
+    """
+    Apply popup effect to subtitle lines (scale from small to normal size).
+    
+    Args:
+        subs: pysubs2.SSAFile object
+        scale_duration_ms (int): Duration of the scaling animation in milliseconds
+    """
+    for line in subs:
+        # Create scaling animation from 0% to 100% over the specified duration
+        popup_tag = f"{{\\t(0,{scale_duration_ms},\\fscx0\\fscy0)\\t(0,{scale_duration_ms},\\fscx100\\fscy100)}}"
+        line.text = popup_tag + line.text
+
+
 def srt_to_ass(srt_file_path, output_path, style_dict=None, effects: list[str] = None):
     """
     Convert SRT subtitle file to ASS format.
@@ -56,7 +70,7 @@ def srt_to_ass(srt_file_path, output_path, style_dict=None, effects: list[str] =
         output_path (str): Path to output ASS file
         style_dict (dict): Dictionary containing style parameters
         effects (list[str]): List of effects to apply. Supported values (case-insensitive):
-                             "fade", "random_colors", "fade_colors" (legacy: applies both)
+                             "fade", "random_colors", "popup", "fade_colors" (legacy: applies both)
     """
     # Load the SRT file
     subs = pysubs2.load(srt_file_path)
@@ -101,15 +115,17 @@ def srt_to_ass(srt_file_path, output_path, style_dict=None, effects: list[str] =
     
     if "random_colors" in effects:
         apply_random_colors(subs)
-
     
+    if "popup" in effects:
+        apply_popup_effect(subs, 100)
+
     # Save as ASS file
     subs.save(output_path)
 
 
 if __name__ == "__main__":
-    input_srt="test_data/script_timestamps.srt"
-    output_ass="test_data/subtitles.ass"
+    input_srt="test_data/old/output.srt"
+    output_ass="test_data/old/subtitles.ass"
     custom_style = {
         "name": "Subtitle",
         "fontname": "DejaVu Sans",
@@ -134,4 +150,4 @@ if __name__ == "__main__":
         "marginv": 50,     # vertical margin from bottom/top
     }
 
-    srt_to_ass(input_srt, output_ass, custom_style, effects=["fade", "random_colors"])
+    srt_to_ass(input_srt, output_ass, custom_style, effects=["random_colors", "popup"])

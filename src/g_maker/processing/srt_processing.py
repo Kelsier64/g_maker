@@ -30,9 +30,20 @@ def generate_srt_file(timestamps, output_path):
         os.makedirs(output_dir)
     
     with open(output_path, "w", encoding="utf-8") as f:
+        prev_end_time = 0
         for i, segment in enumerate(timestamps, start=1):
             start_time = segment.start
             end_time = segment.end
+            
+            if end_time == start_time:
+                # Get next segment's start time if available
+                if i < len(timestamps):
+                    end_time = timestamps[i].start
+                    start_time = prev_end_time
+
+            prev_end_time = end_time
+
+
             if WHISPER_MODE == "word":
                 text = segment.word
             elif WHISPER_MODE == "segment":
@@ -49,7 +60,44 @@ def generate_srt_file(timestamps, output_path):
     
     return output_path
 
-def apply_fade_effects(subs, fade_in_ms=100, fade_out_ms=100):
+def generate_srt_file_11(words, output_path):
+    """
+    Create an SRT file from word data.
+    
+    Args:
+        words: List of word dictionaries with 'text', 'start', 'end' keys
+        output_path: Path for the output SRT file
+    """
+    srt_content = []
+    subtitle_number = 1
+    
+    # Filter out spacing elements and group words, excluding commas and periods
+    word_data = [w for w in words if w.get('type') == 'word' and w.get('text') not in [',', '.']]
+    
+    # Always use 1 word per subtitle
+    for word in word_data:
+        start_time = word['start']
+        end_time = word['end']
+        text = word['text']
+        
+        start_formatted = format_timestamp(start_time)
+        end_formatted = format_timestamp(end_time)
+        
+        srt_content.append(f"{subtitle_number}")
+        srt_content.append(f"{start_formatted} --> {end_formatted}")
+        srt_content.append(text)
+        srt_content.append("")  # Empty line between subtitles
+        
+        subtitle_number += 1
+    
+    # Write to file
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(srt_content))
+    
+    print(f"SRT file created: {output_path}")
+
+
+def apply_fade_effects(subs, fade_in_ms=100, fade_out_ms=100, min_duration_ms=200):
     """
     Apply fade in/out effects to subtitle lines.
     
@@ -57,19 +105,27 @@ def apply_fade_effects(subs, fade_in_ms=100, fade_out_ms=100):
         subs: pysubs2.SSAFile object
         fade_in_ms (int): Fade in duration in milliseconds
         fade_out_ms (int): Fade out duration in milliseconds
+        min_duration_ms (int): Minimum duration required to apply fade effects
     """
     for line in subs:
-        if fade_in_ms > 0 or fade_out_ms > 0:
+        # Calculate line duration in milliseconds
+        duration_ms = line.end - line.start
+        
+        # Only apply fade if duration is sufficient
+        if duration_ms >= min_duration_ms and (fade_in_ms > 0 or fade_out_ms > 0):
+            # Adjust fade times if they exceed half the duration
+            actual_fade_in = min(fade_in_ms, duration_ms // 2)
+            actual_fade_out = min(fade_out_ms, duration_ms // 2)
+            
             fade_tag = ""
-            if fade_in_ms > 0 and fade_out_ms > 0:
-                fade_tag = f"{{\\fad({fade_in_ms},{fade_out_ms})}}"
-            elif fade_in_ms > 0:
-                fade_tag = f"{{\\fad({fade_in_ms},0)}}"
-            elif fade_out_ms > 0:
-                fade_tag = f"{{\\fad(0,{fade_out_ms})}}"
+            if actual_fade_in > 0 and actual_fade_out > 0:
+                fade_tag = f"{{\\fad({actual_fade_in},{actual_fade_out})}}"
+            elif actual_fade_in > 0:
+                fade_tag = f"{{\\fad({actual_fade_in},0)}}"
+            elif actual_fade_out > 0:
+                fade_tag = f"{{\\fad(0,{actual_fade_out})}}"
             
             line.text = fade_tag + line.text
-
 
 def apply_random_colors(subs):
     """
@@ -93,6 +149,19 @@ def apply_random_colors(subs):
         color = random.choice(colors)
         color_tag = f"{{\\c&H{color}&}}"
         line.text = color_tag + line.text
+
+def apply_popup_effect(subs, scale_duration_ms=100):
+    """
+    Apply popup effect to subtitle lines (scale from small to normal size).
+    
+    Args:
+        subs: pysubs2.SSAFile object
+        scale_duration_ms (int): Duration of the scaling animation in milliseconds
+    """
+    for line in subs:
+        # Create scaling animation from 0% to 100% over the specified duration
+        popup_tag = f"{{\\t(0,{scale_duration_ms},\\fscx0\\fscy0)\\t(0,{scale_duration_ms},\\fscx100\\fscy100)}}"
+        line.text = popup_tag + line.text
 
 
 def srt_to_ass(srt_file_path, output_path, style_dict=None, effects: list[str] = None):
@@ -149,6 +218,9 @@ def srt_to_ass(srt_file_path, output_path, style_dict=None, effects: list[str] =
     
     if "random_colors" in effects:
         apply_random_colors(subs)
+        
+    if "popup" in effects:
+        apply_popup_effect(subs, 100)
 
     
     # Save as ASS file

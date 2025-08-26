@@ -13,7 +13,7 @@ from g_maker.input import downloader
 from g_maker.models import Prompt,PromptList,Video,Script,ScriptList
 from g_maker.utils import terminal
 from g_maker.prompts import PROMPT_GENERATE_VIDEO, PROMPT_SHORT_VIDEO, PROMPT_CONTENT_CLEAN
-from g_maker.config import PATHS, VIDEO_FPS
+from g_maker.config import PATHS, VIDEO_FPS,WHISPER_MODE
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
@@ -67,7 +67,7 @@ def video_pipeline(script,output_path):
         "marginv": 50,     # vertical margin from bottom/top
     }
 
-    srt_processing.srt_to_ass(PATHS["SRT"], style_dict=style, output_path=PATHS["ASS"], effects=["fade", "random_colors"])
+    srt_processing.srt_to_ass(PATHS["SRT"], style_dict=style, output_path=PATHS["ASS"], effects=["popup", "random_colors"])
     terminal.print_status(f"Subtitles generated with {len(script_timestamps)} segments", "SUCCESS")
 
     # Step 4: Generate video prompts
@@ -77,7 +77,7 @@ def video_pipeline(script,output_path):
         script_for_ai.append({
             "start": round(segment.start,1),
             "end": round(segment.end,1),
-            "text": segment.text.strip()
+            "text": segment.word if WHISPER_MODE == "word" else segment.text.strip()
         })
     msg =[
         {"role": "system", "content": PROMPT_GENERATE_VIDEO},
@@ -138,7 +138,7 @@ def video_pipeline(script,output_path):
     
     spinner = terminal.SpinnerThread("Combining videos...")
     spinner.start()
-    video_processing.combine_videos(VIDEO_FPS, PATHS["BASE_VIDEO"], video_list, PATHS["AUDIO_PATH"], PATHS["COMBINED_VIDEO"])
+    video_processing.combine_videos(60, PATHS["BASE_VIDEO"], video_list, PATHS["AUDIO_PATH"], PATHS["COMBINED_VIDEO"])
     spinner.stop()
     terminal.print_status("Videos combined", "SUCCESS")
 
@@ -235,6 +235,7 @@ def main_pipeline(url):
             output_file = os.path.join(PATHS["FINAL_VIDEOS_DIR"], f"{uid}_{index}.mp4")
             
             start = time.perf_counter()
+            init()
             video_pipeline(i.script, output_path=output_file)
             elapsed = time.perf_counter() - start
             details_file.write(f"   Video: {index}, Title: {i.title}, FileName: {output_file}, ElapsedSeconds:{elapsed:.2f}\n")
