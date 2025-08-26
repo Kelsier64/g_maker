@@ -21,7 +21,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Voice and processing settings
 VOICE_ID = "MFZUKuGQUsGJPQjTS4wC"
-WHISPER_MODE = "segment"
+WHISPER_MODE = "word"
 
 
 
@@ -72,10 +72,67 @@ class SpinnerThread:
             i = (i + 1) % len(spinner_chars)
 
 
-def whisper(path):
+def whisper_text(path):
     """
     Transcribe audio using Azure OpenAI Whisper, handling large files by splitting if necessary.
     """
+    
+    print_status("Starting audio transcription", "PROCESSING")
+    max_size_mb = 24  # Azure OpenAI Whisper limit is 24MB per file
+    file_size_mb = os.path.getsize(path) / (1024 * 1024)
+
+    if file_size_mb <= max_size_mb:
+        spinner = SpinnerThread("Transcribing audio...")
+        spinner.start()
+        try:
+            transcribe = client.audio.transcriptions.create(
+                file=open(path, "rb"),
+                model="whisper",
+                response_format="text",
+            )
+            spinner.stop()
+            print_status("Transcription completed", "SUCCESS")
+            return transcribe
+        except Exception as e:
+            spinner.stop()
+            print_status(f"Transcription failed: {e}", "ERROR")
+            raise
+    else:
+        print_status(f"Large audio file detected ({file_size_mb:.1f}MB), splitting into chunks", "WARNING")
+        audio = AudioSegment.from_file(path)
+        chunk_length_ms = int((max_size_mb * 1024 * 1024) / (file_size_mb) * len(audio))  # proportional chunk size
+        chunk_length_ms = min(chunk_length_ms, 10 * 60 * 1000)  # max 10 min per chunk for safety
+
+        transcripts = []
+        start = 0
+        idx = 0
+        total_chunks = (len(audio) + chunk_length_ms - 1) // chunk_length_ms
+        progress_bar = ProgressBar(total_chunks, "Transcribing chunks")
+        
+        while start < len(audio):
+            end = min(start + chunk_length_ms, len(audio))
+            chunk = audio[start:end]
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmpfile:
+                chunk.export(tmpfile.name, format="mp3")
+                transcribe = client.audio.transcriptions.create(
+                    file=open(tmpfile.name, "rb"),
+                    model="whisper",
+                    response_format="text",
+                )
+                transcripts.append(transcribe)
+                os.remove(tmpfile.name)
+            start = end
+            idx += 1
+            progress_bar.update()
+
+        progress_bar.finish()
+        print_status("All chunks transcribed", "SUCCESS")
+
+        return " ".join(transcripts)
+
+
+
+def whisper_timestamp(path):
     print_status("Starting audio transcription", "PROCESSING")
     max_size_mb = 24  # Azure OpenAI Whisper limit is 24MB per file
     file_size_mb = os.path.getsize(path) / (1024 * 1024)
@@ -91,56 +148,18 @@ def whisper(path):
                 timestamp_granularities=[WHISPER_MODE],
             )
             spinner.stop()
-            print_status(f"Transcription completed - {len(transcribe.segments)} segments", "SUCCESS")
-            return transcribe
+            print_status("Transcription completed", "SUCCESS")
+
+            if WHISPER_MODE == "word":
+                return transcribe.words
+            if WHISPER_MODE == "segment":
+                return transcribe.segments
+            
         except Exception as e:
             spinner.stop()
             print_status(f"Transcription failed: {e}", "ERROR")
             raise
-    else:
-        print_status(f"Large audio file detected ({file_size_mb:.1f}MB), splitting into chunks", "WARNING")
-        audio = AudioSegment.from_file(path)
-        chunk_length_ms = int((max_size_mb * 1024 * 1024) / (file_size_mb) * len(audio))  # proportional chunk size
-        chunk_length_ms = min(chunk_length_ms, 10 * 60 * 1000)  # max 10 min per chunk for safety
 
-        segments = []
-        start = 0
-        idx = 0
-        total_chunks = (len(audio) + chunk_length_ms - 1) // chunk_length_ms
-        progress_bar = ProgressBar(total_chunks, "Transcribing chunks")
-        
-        while start < len(audio):
-            end = min(start + chunk_length_ms, len(audio))
-            chunk = audio[start:end]
-            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmpfile:
-                chunk.export(tmpfile.name, format="mp3")
-                transcribe = client.audio.transcriptions.create(
-                    file=open(tmpfile.name, "rb"),
-                    model="whisper",
-                    response_format="verbose_json",
-                    timestamp_granularities=["segment"],
-                )
-                # Adjust segment times
-                for seg in transcribe.segments:
-                    seg.start += start / 1000
-                    seg.end += start / 1000
-                segments.extend(transcribe.segments)
-                os.remove(tmpfile.name)
-            start = end
-            idx += 1
-            progress_bar.update()
-
-        progress_bar.finish()
-        print_status(f"All chunks transcribed - {len(segments)} total segments", "SUCCESS")
-
-        # Compose a result-like object
-        class Result:
-            def __init__(self, segments):
-                self.segments = segments
-                self.text = " ".join([seg.text for seg in segments])
-                self.duration = segments[-1].end if segments else 0
-
-        return Result(segments)
 
 
 def tts(text, output_path="./output.mp3"):
@@ -192,7 +211,6 @@ def tts(text, output_path="./output.mp3"):
         return None
 
 def gpt_request(messages, text_format=None):
-    from ..utils.terminal import print_status, SpinnerThread
     
     spinner = SpinnerThread("Processing with AI...")
     spinner.start()

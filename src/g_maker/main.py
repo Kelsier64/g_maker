@@ -107,8 +107,8 @@ def video_pipeline(script,output_path):
     
     # Step 3: Generate SRT
     terminal.print_status("Step 3/7: Generating subtitles", "PROCESSING")
-    script_timestamps = ai_api_clients.whisper(PATHS["AUDIO_PATH"])
-    script_timestamps = script_timestamps.segments
+    script_timestamps = ai_api_clients.whisper_timestamp(PATHS["AUDIO_PATH"])
+
 
     srt_processing.generate_srt_file(script_timestamps, output_path=PATHS["SRT"])
 
@@ -265,9 +265,9 @@ def main_pipeline(url):
 
     # Step 2: Transcribe reference video
     terminal.print_status("Step 2/4: Transcribing reference video", "PROCESSING")
-    ref_text = ai_api_clients.whisper(PATHS["REF_AUDIO"])
+    ref_text = ai_api_clients.whisper_text(PATHS["REF_AUDIO"])
     os.remove(PATHS["REF_AUDIO"])
-    ref_text = ref_text.text
+
     terminal.print_status(f"Transcription completed ({len(ref_text)} characters)", "SUCCESS")
     print(f"\033[90m{ref_text[:200]}...\033[0m")  # Show preview in gray
 
