@@ -62,8 +62,6 @@ def burn_ass_subtitle(input_video_path: str, ass_path: str, output_path: str):
     except CalledProcessError as e:
         raise RuntimeError("ffmpeg failed while burning ASS subtitles") from e
 
-
-
 def combine_videos(fps:int,base_video_path: str, video_list: list[Video], audio_path: str, output_path: str):
     """
     Combine base video with overlay videos using ffmpeg.
