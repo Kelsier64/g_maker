@@ -134,8 +134,8 @@ def video_pipeline(script, output_path, title="Generated Video"):
             task_id = t2v_api_client.submit_video_generation(
                 prompt=prompt.prompt,
                 sample_steps=50,
-                fps=VIDEO_FPS,
-                num_frames=prompt.duration * VIDEO_FPS + 1,
+                fps=G_VIDEO_FPS,
+                num_frames=prompt.duration * G_VIDEO_FPS + 1,
             )
             if task_id:
                 task_map[task_id] = {
