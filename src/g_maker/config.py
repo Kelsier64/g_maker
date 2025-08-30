@@ -3,6 +3,7 @@ G_VIDEO_FPS = 16
 VOICE_ID = "MFZUKuGQUsGJPQjTS4wC"
 VOICE_ID = "MFZUKuGQUsGJPQjTS4wC"
 STT_MODE = "word" # segment
+AUTO_UPLOAD = False  # Enable automatic YouTube upload after video completion
 PATHS = {
     "GENERATED_VIDEOS_DIR": "./generated_videos",
     "FINAL_VIDEOS_DIR": "./output",

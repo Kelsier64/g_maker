@@ -7,6 +7,7 @@ import cv2
 from g_maker.database import db
 from g_maker.models import VideoRecord, VideoPrompt, ProcessingLog, PromptList
 from g_maker.utils import terminal
+from g_maker.services.yt_uploader import YouTubeUploader
 
 class VideoManager:
     """High-level manager for video operations with database integration."""
@@ -41,6 +42,8 @@ class VideoManager:
         """Mark the start of a processing step."""
         self.db.log_processing_step(video_id, step, "started", message)
         self.db.update_video_info(video_id, status="processing")
+    
+    
     
     def complete_processing_step(self, video_id: int, step: str, message: str = None):
         """Mark the completion of a processing step."""
@@ -226,6 +229,92 @@ class VideoManager:
             print(f"Total Duration: {duration_min:.2f} minutes")
         
         print(f"{'='*40}\n")
+    
+    def upload_to_youtube(self, video_id: int, title: str = None, description: str = "", 
+                         tags: List[str] = None, privacy_status: str = "private") -> Optional[str]:
+        """Upload video to YouTube and update database with upload info."""
+        video = self.get_video(video_id)
+        if not video:
+            terminal.print_status(f"Video with ID {video_id} not found", "ERROR")
+            return None
+        
+        if not video.file_path or not os.path.exists(video.file_path):
+            terminal.print_status(f"Video file not found: {video.file_path}", "ERROR")
+            return None
+        
+        # Use video title if none provided
+        upload_title = title or video.title
+        
+        # Start upload process
+        self.start_processing(video_id, "youtube_upload", f"Uploading '{upload_title}' to YouTube")
+        
+        try:
+            uploader = YouTubeUploader()
+            result = uploader.upload_video(
+                video_path=video.file_path,
+                title=upload_title,
+                description=description,
+                tags=tags,
+                privacy_status=privacy_status
+            )
+            
+            if result:
+                # Store upload info in metadata
+                metadata = video.metadata or {}
+                metadata['youtube_upload'] = {
+                    'video_id': result['id'],
+                    'url': result['url'],
+                    'upload_date': datetime.now().isoformat(),
+                    'privacy_status': privacy_status
+                }
+                
+                # Update database
+                self.db.update_video_info(video_id, metadata=metadata)
+                self.complete_processing_step(video_id, "youtube_upload", 
+                                            f"Uploaded successfully: {result['url']}")
+                
+                terminal.print_status(f"✅ Video uploaded to YouTube: {result['url']}", "SUCCESS")
+                return result['url']
+            else:
+                self.fail_processing_step(video_id, "youtube_upload", "Upload failed")
+                return None
+                
+        except Exception as e:
+            error_msg = f"Upload error: {str(e)}"
+            self.fail_processing_step(video_id, "youtube_upload", error_msg)
+            terminal.print_status(error_msg, "ERROR")
+            return None
+    
+    def get_upload_details_interactive(self, video: VideoRecord) -> Dict[str, Any]:
+        """Get upload details from user interactively."""
+        terminal.print_separator(f"YouTube Upload - {video.title}")
+        
+        # Get title
+        title = terminal.get_user_input("Video title", video.title, required=True)
+        
+        # Get description
+        description = terminal.get_user_input("Video description", "", required=False)
+        
+        # Get tags
+        tags_input = terminal.get_user_input("Tags (comma-separated)", "", required=False)
+        tags = [tag.strip() for tag in tags_input.split(",") if tag.strip()] if tags_input else []
+        
+        # Get privacy status
+        print("\nPrivacy options:")
+        print("1. Private (default)")
+        print("2. Unlisted") 
+        print("3. Public")
+        privacy_choice = terminal.get_user_input("Privacy setting", "1", required=True)
+        
+        privacy_map = {"1": "private", "2": "unlisted", "3": "public"}
+        privacy_status = privacy_map.get(privacy_choice, "private")
+        
+        return {
+            "title": title,
+            "description": description,
+            "tags": tags,
+            "privacy_status": privacy_status
+        }
 
 # Global video manager instance
 video_manager = VideoManager()

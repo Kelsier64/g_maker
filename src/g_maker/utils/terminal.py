@@ -103,3 +103,43 @@ class SpinnerThread:
             sys.stdout.flush()
             time.sleep(0.1)
             i = (i + 1) % len(spinner_chars)
+
+def get_user_input(prompt, default=None, required=True):
+    """Get user input with optional default value."""
+    if default:
+        full_prompt = f"{prompt} [{default}]: "
+    else:
+        full_prompt = f"{prompt}: "
+    
+    while True:
+        user_input = input(f"\033[36m{full_prompt}\033[0m").strip()
+        
+        if user_input:
+            return user_input
+        elif default:
+            return default
+        elif not required:
+            return ""
+        else:
+            print_status("This field is required. Please enter a value.", "WARNING")
+
+def confirm_action(prompt, default_yes=False):
+    """Ask user for yes/no confirmation."""
+    if default_yes:
+        options = "[Y/n]"
+        default = "y"
+    else:
+        options = "[y/N]"
+        default = "n"
+    
+    while True:
+        response = input(f"\033[33m{prompt} {options}: \033[0m").strip().lower()
+        
+        if response in ['y', 'yes']:
+            return True
+        elif response in ['n', 'no']:
+            return False
+        elif response == "":
+            return default == "y"
+        else:
+            print_status("Please enter 'y' for yes or 'n' for no.", "WARNING")

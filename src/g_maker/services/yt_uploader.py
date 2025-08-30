@@ -8,8 +8,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
-from ..config import PATHS
-from ..utils.terminal import print_status, print_separator
+from g_maker.config import PATHS
+from g_maker.utils.terminal import print_status, print_separator
 
 """YouTube upload service for G-Maker AI Video Generator."""
 
@@ -72,7 +72,7 @@ class YouTubeUploader:
                     flow = InstalledAppFlow.from_client_secrets_file(
                         self.credentials_file, SCOPES
                     )
-                    creds = flow.run_local_server(port=8080)
+                    creds = flow.run_local_server(port=8000)
                 except Exception as e:
                     print_status(f"OAuth2 flow failed: {e}", "ERROR")
                     return False
