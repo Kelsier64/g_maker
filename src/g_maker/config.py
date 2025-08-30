@@ -16,4 +16,5 @@ PATHS = {
     "ASS": "./temp/subtitles.ass",
     "CLOSE_JPG": "./static/close.jpg",
     "OPEN_JPG": "./static/open.jpg",
+    "CONFIG": "./config",
 }
