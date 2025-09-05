@@ -5,7 +5,7 @@ from datetime import datetime
 import cv2
 
 from g_maker.database import db
-from g_maker.models import VideoRecord, VideoPrompt, ProcessingLog, PromptList
+from g_maker.models import VideoRecord
 from g_maker.utils import terminal
 from g_maker.services.yt_uploader import YouTubeUploader
 
@@ -15,43 +15,28 @@ class VideoManager:
     def __init__(self):
         self.db = db
     
-    def create_video_project(self, title: str, script: str, prompts: PromptList = None) -> int:
+    def create_video_project(self, title: str, script: str) -> int:
         """Create a new video project and return its ID."""
         terminal.print_status(f"Creating video project: {title}", "PROCESSING")
         
         # Create video record
         video_id = self.db.create_video_record(title=title, script=script)
         
-        # Add prompts if provided
-        if prompts:
-            for prompt in prompts.prompts:
-                self.db.add_prompt(
-                    video_id=video_id,
-                    prompt=prompt.prompt,
-                    start_time=prompt.start_time,
-                    duration=prompt.duration
-                )
-        
-        # Log project creation
-        self.db.log_processing_step(video_id, "project_created", "completed", f"Project '{title}' created")
-        
         terminal.print_status(f"Video project created with ID: {video_id}", "SUCCESS")
         return video_id
     
     def start_processing(self, video_id: int, step: str, message: str = None):
         """Mark the start of a processing step."""
-        self.db.log_processing_step(video_id, step, "started", message)
         self.db.update_video_info(video_id, status="processing")
     
     
     
     def complete_processing_step(self, video_id: int, step: str, message: str = None):
         """Mark the completion of a processing step."""
-        self.db.log_processing_step(video_id, step, "completed", message)
+        pass  # Individual steps don't change status, only final completion does
     
     def fail_processing_step(self, video_id: int, step: str, error_message: str):
         """Mark the failure of a processing step."""
-        self.db.log_processing_step(video_id, step, "failed", error_message)
         self.db.update_video_info(video_id, status="failed")
     
     def set_video_file(self, video_id: int, file_path: str):
@@ -71,10 +56,7 @@ class VideoManager:
             file_path=file_path,
             file_size=file_size,
             duration=metadata.get('duration'),
-            fps=metadata.get('fps'),
-            resolution=metadata.get('resolution'),
-            status="completed",
-            metadata=metadata
+            status="completed"
         )
         
         terminal.print_status(f"Video file registered: {os.path.basename(file_path)}", "SUCCESS")
@@ -114,8 +96,8 @@ class VideoManager:
         """Get a video record."""
         data = self.db.get_video(video_id)
         if data:
-            # Parse metadata if it exists
-            if data['metadata']:
+            # Parse metadata if it exists (keeping for backward compatibility)
+            if data.get('metadata'):
                 try:
                     data['metadata'] = json.loads(data['metadata']) if isinstance(data['metadata'], str) else data['metadata']
                 except json.JSONDecodeError:
@@ -129,8 +111,8 @@ class VideoManager:
         videos = []
         
         for data in videos_data:
-            # Parse metadata if it exists
-            if data['metadata']:
+            # Parse metadata if it exists (keeping for backward compatibility)
+            if data.get('metadata'):
                 try:
                     data['metadata'] = json.loads(data['metadata']) if isinstance(data['metadata'], str) else data['metadata']
                 except json.JSONDecodeError:
@@ -138,16 +120,8 @@ class VideoManager:
             videos.append(VideoRecord(**data))
         
         return videos
-    
-    def get_video_prompts(self, video_id: int) -> List[VideoPrompt]:
-        """Get prompts for a video."""
-        prompts_data = self.db.get_video_prompts(video_id)
-        return [VideoPrompt(**data) for data in prompts_data]
-    
-    def get_processing_logs(self, video_id: int) -> List[ProcessingLog]:
-        """Get processing logs for a video."""
-        logs_data = self.db.get_processing_logs(video_id)
-        return [ProcessingLog(**data) for data in logs_data]
+        
+        return videos
     
     def delete_video(self, video_id: int) -> bool:
         """Delete a video and its files."""
@@ -182,27 +156,6 @@ class VideoManager:
                 print(f"Size: {video.file_size / (1024*1024):.2f} MB")
             if video.duration:
                 print(f"Duration: {video.duration:.2f} seconds")
-            if video.resolution:
-                print(f"Resolution: {video.resolution}")
-            if video.fps:
-                print(f"FPS: {video.fps}")
-        
-        # Show prompts
-        prompts = self.get_video_prompts(video_id)
-        if prompts:
-            print(f"\nPrompts ({len(prompts)}):")
-            for i, prompt in enumerate(prompts, 1):
-                print(f"  {i}. [{prompt.start_time}s, {prompt.duration}s] {prompt.prompt[:50]}...")
-        
-        # Show recent logs
-        logs = self.get_processing_logs(video_id)
-        if logs:
-            print(f"\nProcessing Logs ({len(logs)} total, showing last 5):")
-            for log in logs[-5:]:
-                status_symbol = "✓" if log.status == "completed" else "✗" if log.status == "failed" else "○"
-                print(f"  {status_symbol} {log.step}: {log.status}")
-                if log.message:
-                    print(f"    {log.message}")
         
         print(f"{'='*50}\n")
     
@@ -245,9 +198,6 @@ class VideoManager:
         # Use video title if none provided
         upload_title = title or video.title
         
-        # Start upload process
-        self.start_processing(video_id, "youtube_upload", f"Uploading '{upload_title}' to YouTube")
-        
         try:
             uploader = YouTubeUploader()
             result = uploader.upload_video(
@@ -259,29 +209,16 @@ class VideoManager:
             )
             
             if result:
-                # Store upload info in metadata
-                metadata = video.metadata or {}
-                metadata['youtube_upload'] = {
-                    'video_id': result['id'],
-                    'url': result['url'],
-                    'upload_date': datetime.now().isoformat(),
-                    'privacy_status': privacy_status
-                }
-                
-                # Update database
-                self.db.update_video_info(video_id, metadata=metadata)
-                self.complete_processing_step(video_id, "youtube_upload", 
-                                            f"Uploaded successfully: {result['url']}")
-                
+                # Mark video as uploaded
+                self.db.update_video_info(video_id, status="uploaded")
                 terminal.print_status(f"✅ Video uploaded to YouTube: {result['url']}", "SUCCESS")
                 return result['url']
             else:
-                self.fail_processing_step(video_id, "youtube_upload", "Upload failed")
+                terminal.print_status("Upload failed", "ERROR")
                 return None
                 
         except Exception as e:
             error_msg = f"Upload error: {str(e)}"
-            self.fail_processing_step(video_id, "youtube_upload", error_msg)
             terminal.print_status(error_msg, "ERROR")
             return None
     

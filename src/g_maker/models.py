@@ -31,30 +31,8 @@ class VideoRecord(BaseModel):
     file_path: Optional[str] = None
     file_size: Optional[int] = None
     duration: Optional[float] = None
-    fps: Optional[int] = None
-    resolution: Optional[str] = None
     status: str = 'created'
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    metadata: Optional[Dict[str, Any]] = None
-
-class VideoPrompt(BaseModel):
-    """Model for prompts associated with videos."""
-    id: Optional[int] = None
-    video_id: int
-    prompt: str
-    start_time: float
-    duration: int
-    created_at: Optional[datetime] = None
-
-class ProcessingLog(BaseModel):
-    """Model for processing logs."""
-    id: Optional[int] = None
-    video_id: int
-    step: str
-    status: str  # 'started', 'completed', 'failed'
-    message: Optional[str] = None
-    timestamp: Optional[datetime] = None
-
 
     

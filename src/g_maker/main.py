@@ -28,14 +28,14 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
     video_id = video_manager.create_video_project(title=title, script=script)
     
     try:
+        # Mark as processing
+        video_manager.start_processing(video_id, "pipeline", "Starting video production pipeline")
+        
         # Step 1: Generate audio
-        video_manager.start_processing(video_id, "audio_generation", "Generating speech from script")
         terminal.print_status("Step 1/7: Generating audio", "PROCESSING")
         ai_api_clients.tts(script, output_path=PATHS["AUDIO_PATH"])
-        video_manager.complete_processing_step(video_id, "audio_generation", "Audio generated successfully")
 
         # Step 2: Create speaker video
-        video_manager.start_processing(video_id, "speaker_video", "Creating animated speaker video")
         terminal.print_status("Step 2/7: Creating speaker video", "PROCESSING")
         spinner = terminal.SpinnerThread("Animating speaker...")
         spinner.start()
@@ -47,10 +47,8 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
         )
         spinner.stop()
         terminal.print_status("Speaker video created", "SUCCESS")
-        video_manager.complete_processing_step(video_id, "speaker_video", "Speaker video created")
         
         # Step 3: Generate SRT
-        video_manager.start_processing(video_id, "subtitle_generation", f"Generating subtitles using {STT_MODE} mode")
         terminal.print_status("Step 3/7: Generating subtitles", "PROCESSING")
         if STT_MODE == "segment":
             script_timestamps = ai_api_clients.whisper_timestamp(PATHS["AUDIO_PATH"])
@@ -85,10 +83,8 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
 
         srt_processing.srt_to_ass(PATHS["SRT"], style_dict=style, output_path=PATHS["ASS"], effects=["popup", "random_colors"])
         terminal.print_status(f"Subtitles generated", "SUCCESS")
-        video_manager.complete_processing_step(video_id, "subtitle_generation", "Subtitles generated successfully")
 
         # Step 4: Generate video prompts
-        video_manager.start_processing(video_id, "prompt_generation", "Generating AI video prompts")
         terminal.print_status("Step 4/7: Generating video prompts", "PROCESSING")
         script_for_ai = []
         if STT_MODE == "segment":
@@ -113,19 +109,8 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
         ]
         prompt4video = ai_api_clients.gpt_request(msg,PromptList)
         terminal.print_status(f"Generated {len(prompt4video.prompts)} video prompts", "SUCCESS")
-        
-        # Store prompts in database
-        for prompt in prompt4video.prompts:
-            video_manager.db.add_prompt(
-                video_id=video_id,
-                prompt=prompt.prompt,
-                start_time=prompt.start_time,
-                duration=prompt.duration
-            )
-        video_manager.complete_processing_step(video_id, "prompt_generation", f"Generated {len(prompt4video.prompts)} video prompts")
 
         # Step 5: Submit video generation tasks
-        video_manager.start_processing(video_id, "video_generation", "Submitting video generation tasks")
         terminal.print_status("Step 5/7: Submitting video generation tasks", "PROCESSING")
         video_list: list[Video] = []
         task_map = {}
@@ -173,10 +158,8 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
             ))
             download_progress.update()
         download_progress.finish()
-        video_manager.complete_processing_step(video_id, "video_generation", f"Generated {len(video_list)} video segments")
 
         # Step 7: Final video assembly
-        video_manager.start_processing(video_id, "video_assembly", "Assembling final video")
         terminal.print_status("Step 7/7: Assembling final video", "PROCESSING")
         
         spinner = terminal.SpinnerThread("Combining videos...")
@@ -199,7 +182,6 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
         
         # Register final video in database
         video_manager.set_video_file(video_id, output_path)
-        video_manager.complete_processing_step(video_id, "video_assembly", f"Final video saved to {output_path}")
         
         # Auto upload to YouTube if enabled
         if should_auto_upload:
@@ -295,25 +277,21 @@ def main_pipeline(url):
     terminal.print_separator("VIDEO PRODUCTION")
 
     # Video making loop
-    details_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], "video_details.txt")
+
     uid = uuid4().hex
 
-    with open(details_path, "a", encoding="utf-8") as details_file:
-        details_file.write(f"\nSeriesUid: {uid}, Url: {url}\n")
+    for index, i in enumerate(sv_scripts.scripts):
+        terminal.print_separator(f"Video {index + 1}/{len(sv_scripts.scripts)}: {i.title}")
+        terminal.print_status(f"Script preview: {i.script[:100]}...", "INFO")
 
-        for index, i in enumerate(sv_scripts.scripts):
-            terminal.print_separator(f"Video {index + 1}/{len(sv_scripts.scripts)}: {i.title}")
-            terminal.print_status(f"Script preview: {i.script[:100]}...", "INFO")
+        output_file = os.path.join(PATHS["FINAL_VIDEOS_DIR"], f"{uid}_{index}.mp4")
+        
+        start = time.perf_counter()
+        init()
+        video_id = video_pipeline(i.script, output_path=output_file, title=i.title, auto_upload=AUTO_UPLOAD)
+        elapsed = time.perf_counter() - start
 
-            output_file = os.path.join(PATHS["FINAL_VIDEOS_DIR"], f"{uid}_{index}.mp4")
-            
-            start = time.perf_counter()
-            init()
-            video_id = video_pipeline(i.script, output_path=output_file, title=i.title, auto_upload=AUTO_UPLOAD)
-            elapsed = time.perf_counter() - start
-            details_file.write(f"   Video: {index}, Title: {i.title}, FileName: {output_file}, ElapsedSeconds:{elapsed:.2f}, VideoID: {video_id}\n")
-
-            terminal.print_status(f"Video {index + 1} completed in {elapsed:.1f}s", "SUCCESS")
+        terminal.print_status(f"Video {index + 1} completed in {elapsed:.1f}s", "SUCCESS")
 
     terminal.print_separator()
     terminal.print_status(f"Series {uid} completed successfully!", "SUCCESS")
@@ -357,14 +335,13 @@ def main():
             print("1. Add a YouTube URL")
             print("2. Add multiple YouTube URLs (comma-separated)")
             print("3. Start processing")
-            print("4. Clear output dir")
-            print("5. View video database")
-            print("6. Show database stats")
-            print("7. View video details")
-            print("8. Delete video")
-            print("9. Upload video to YouTube")
-            print("10. Toggle auto-upload mode")
-            print("11. Exit")
+            print("4. View video database")
+            print("5. Show database stats")
+            print("6. View video details")
+            print("7. Delete video")
+            print("8. Upload video to YouTube")
+            print("9. Toggle auto-upload mode")
+            print("10. Exit")
             choice = input("\n\033[36mEnter your choice: \033[0m").strip()
 
             if choice == "1":
@@ -389,22 +366,6 @@ def main():
                 terminal.print_status(f"Starting processing of {len(urls)} URLs...", "PROCESSING")
                 break
             elif choice == "4":
-                terminal.print_status("Clearing output directory...", "PROCESSING")
-                files_removed = 0
-
-                if os.path.exists(PATHS["FINAL_VIDEOS_DIR"]):
-                    for filename in os.listdir(PATHS["FINAL_VIDEOS_DIR"]):
-                        file_path = os.path.join(PATHS["FINAL_VIDEOS_DIR"], filename)
-                        if os.path.isfile(file_path):
-                            os.remove(file_path)
-                            files_removed += 1
-                else:
-                    os.makedirs(PATHS["FINAL_VIDEOS_DIR"])
-
-                if files_removed > 0:
-                    terminal.print_status(f"Cleared {files_removed} files from {PATHS['FINAL_VIDEOS_DIR']}", "SUCCESS")
-
-            elif choice == "5":
                 # View video database
                 videos = video_manager.list_videos(limit=20)
                 if not videos:
@@ -412,16 +373,16 @@ def main():
                 else:
                     print(f"\n\033[1m📹 Recent Videos (showing {len(videos)}):\033[0m")
                     for video in videos:
-                        status_color = {"completed": "32", "processing": "33", "failed": "31", "created": "36"}.get(video.status, "37")
+                        status_color = {"completed": "32", "processing": "33", "failed": "31", "created": "36", "uploaded": "35"}.get(video.status, "37")
                         duration_str = f"{video.duration:.1f}s" if video.duration else "N/A"
                         size_str = f"{video.file_size/(1024*1024):.1f}MB" if video.file_size else "N/A"
-                        print(f"  ID: {video.id} | \033[{status_color}m{video.status.upper()}\033[0m | {video.title[:40]:<40} | {duration_str} | {size_str}")
-                
-            elif choice == "6":
+                        print(f"  ID: {video.id} | {video.title[:40]:<40} | {duration_str} | {size_str} | \033[{status_color}m{video.status.upper()}\033[0m")
+
+            elif choice == "5":
                 # Show database stats
                 video_manager.print_stats()
                 
-            elif choice == "7":
+            elif choice == "6":
                 # View video details
                 try:
                     video_id = int(input("\033[36mEnter video ID: \033[0m").strip())
@@ -429,7 +390,7 @@ def main():
                 except ValueError:
                     terminal.print_status("Invalid video ID", "ERROR")
                     
-            elif choice == "8":
+            elif choice == "7":
                 # Delete video
                 try:
                     video_id = int(input("\033[36mEnter video ID to delete: \033[0m").strip())
@@ -448,7 +409,7 @@ def main():
                 except ValueError:
                     terminal.print_status("Invalid video ID", "ERROR")
 
-            elif choice == "9":
+            elif choice == "8":
                 # Upload video to YouTube
                 try:
                     video_id = int(input("\033[36mEnter video ID to upload: \033[0m").strip())
@@ -457,13 +418,6 @@ def main():
                         if not video.file_path or not os.path.exists(video.file_path):
                             terminal.print_status("Video file not found. Cannot upload.", "ERROR")
                             continue
-                            
-                        # Check if already uploaded
-                        if video.metadata and video.metadata.get('youtube_upload'):
-                            upload_info = video.metadata['youtube_upload']
-                            terminal.print_status(f"Video already uploaded: {upload_info['url']}", "INFO")
-                            if not terminal.confirm_action("Upload again?", False):
-                                continue
                         
                         upload_details = video_manager.get_upload_details_interactive(video)
                         
@@ -483,14 +437,14 @@ def main():
                 except ValueError:
                     terminal.print_status("Invalid video ID", "ERROR")
                     
-            elif choice == "10":
+            elif choice == "9":
                 # Toggle auto-upload mode
                 AUTO_UPLOAD = not AUTO_UPLOAD
                 status = "ENABLED" if AUTO_UPLOAD else "DISABLED"
                 color = "SUCCESS" if AUTO_UPLOAD else "WARNING"
                 terminal.print_status(f"Auto-upload mode {status}", color)
                 
-            elif choice == "11":
+            elif choice == "10":
                 terminal.print_status("Exiting...", "INFO")
                 return
             else:
