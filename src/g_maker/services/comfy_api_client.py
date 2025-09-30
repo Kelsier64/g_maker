@@ -8,7 +8,7 @@ def main():
     # ComfyUI 服务器的地址，如果是本地就是 127.0.0.1:8188
     server_address = "127.0.0.1:8188"
     # 1. 加载你保存的工作流 JSON 文件
-    workflow_file_path = "src/g_maker/video_wan2_2_5B_ti2v.json"
+    workflow_file_path = "static/kj720p.json"
     
     with open(workflow_file_path, 'r', encoding='utf-8') as f:
         workflow_data = json.load(f)
@@ -86,19 +86,19 @@ def main():
             result_data = history[prompt_id]
             outputs = result_data.get('outputs', {})
 
-            # 遍历所有有输出的节点，找到生成的图片
+            # 遍历所有有输出的节点，找到生成的 GIF
             for node_id, node_output in outputs.items():
-                if 'images' in node_output:
-                    for image_info in node_output['images']:
-                        # 构建图片的完整 URL
-                        image_filename = image_info['filename']
-                        image_url = f"http://{server_address}/view?filename={image_filename}&subfolder={image_info.get('subfolder', '')}&type={image_info.get('type', 'output')}"
-                        # 下载图片
-                        image_response = requests.get(image_url)
+                if 'gifs' in node_output:
+                    for gif_info in node_output['gifs']:
+                        # 构建 GIF 的完整 URL
+                        gif_filename = gif_info['filename']
+                        gif_url = f"http://{server_address}/view?filename={gif_filename}&subfolder={gif_info.get('subfolder', '')}&type={gif_info.get('type', 'output')}"
+                        # 下载 GIF
+                        gif_response = requests.get(gif_url)
                         # Save video to local file
                         output_path = f"output_{prompt_id}_{len(output_images)+1}.mp4"
                         with open(output_path, 'wb') as f:
-                            f.write(image_response.content)
+                            f.write(gif_response.content)
                         output_images.append(output_path)
                         print(f"视频已保存至: {output_path}")
             break # 退出轮询循环
