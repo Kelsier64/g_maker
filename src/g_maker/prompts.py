@@ -9,7 +9,7 @@ Rules:
 5. dont write any words on the image, just describe the scene.
 6. no timeline graphic or chart or other overlays.
 7. the first video should start at 0.0 seconds.
-8. Do not use any emojis.
+
 Output format:
    - "prompt": a vivid scene description matching the transcript and context.
    - "start_time": float, scene start time in seconds.
@@ -33,8 +33,10 @@ Script Writing Guidelines:
 - The tone should be conversational, energetic, and easy to follow.
 - Use short sentences, rhetorical questions, and emotional hooks to keep viewers engaged.
 - Start strong — grab attention within the first few seconds,the hook at the start should be eye-catching and intriguing.
-- End with a thought-provoking idea or light call to action (e.g. "What do you think?" or "Share this with a friend").
+- End with a thought-provoking idea or light call to action (e.g. "What do you think?").
 - Avoid formal or academic wording.
+- Do not use any emojis or other special characters.
+- remember,it is for speech,what you write should sound natural when spoken.
 """
 
 PROMPT_CONTENT_CLEAN = """
