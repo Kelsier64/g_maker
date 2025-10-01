@@ -4,7 +4,7 @@ import warnings
 from uuid import uuid4
 from pysubs2 import Color
 
-from g_maker.services import t2v_api_client
+from g_maker.services import comfy_api_client
 from g_maker.services import ai_api_clients
 from g_maker.processing import make_speaker
 from g_maker.processing import video_processing
@@ -19,6 +19,7 @@ from g_maker.config import PATHS, VIDEO_FPS,STT_MODE,G_VIDEO_FPS,AUTO_UPLOAD
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 def video_pipeline(script, output_path, title="Generated Video", auto_upload=None):
+    print(f"\033[90m{script}\033[0m")  # Show preview in gray
     terminal.print_separator("Video Production Pipeline")
     
     # Use global AUTO_UPLOAD setting if not specified
@@ -32,11 +33,11 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
         video_manager.start_processing(video_id, "pipeline", "Starting video production pipeline")
         
         # Step 1: Generate audio
-        terminal.print_status("Step 1/7: Generating audio", "PROCESSING")
+        terminal.print_status("Step 1/6: Generating audio", "PROCESSING")
         ai_api_clients.tts(script, output_path=PATHS["AUDIO_PATH"])
 
         # Step 2: Create speaker video
-        terminal.print_status("Step 2/7: Creating speaker video", "PROCESSING")
+        terminal.print_status("Step 2/6: Creating speaker video", "PROCESSING")
         spinner = terminal.SpinnerThread("Animating speaker...")
         spinner.start()
         make_speaker.create_speaker_video(
@@ -49,7 +50,7 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
         terminal.print_status("Speaker video created", "SUCCESS")
         
         # Step 3: Generate SRT
-        terminal.print_status("Step 3/7: Generating subtitles", "PROCESSING")
+        terminal.print_status("Step 3/6: Generating subtitles", "PROCESSING")
         if STT_MODE == "segment":
             script_timestamps = ai_api_clients.whisper_timestamp(PATHS["AUDIO_PATH"])
             srt_processing.generate_srt_file(script_timestamps, output_path=PATHS["SRT"])
@@ -85,7 +86,7 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
         terminal.print_status(f"Subtitles generated", "SUCCESS")
 
         # Step 4: Generate video prompts
-        terminal.print_status("Step 4/7: Generating video prompts", "PROCESSING")
+        terminal.print_status("Step 4/6: Generating video prompts", "PROCESSING")
         script_for_ai = []
         if STT_MODE == "segment":
             for segment in script_timestamps:
@@ -109,58 +110,49 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
         ]
         prompt4video = ai_api_clients.gpt_request(msg,PromptList)
         terminal.print_status(f"Generated {len(prompt4video.prompts)} video prompts", "SUCCESS")
+        for p in prompt4video.prompts:
+            print(f"\033[90m{p.start_time}-{p.start_time+p.duration}s] {p.prompt}\033[0m")  # Show preview in gray
 
-        # Step 5: Submit video generation tasks
-        terminal.print_status("Step 5/7: Submitting video generation tasks", "PROCESSING")
+
+        # Step 5: Generate videos using ComfyUI
+        terminal.print_status("Step 5/6: Generating videos with ComfyUI", "PROCESSING")
         video_list: list[Video] = []
-        task_map = {}
         
-        # Submit all video generation tasks and map task_id to video info
-        submission_progress = terminal.ProgressBar(len(prompt4video.prompts), "Submitting tasks")
+        # Generate videos synchronously with ComfyUI
+        generation_progress = terminal.ProgressBar(len(prompt4video.prompts), "Generating videos")
         for i, prompt in enumerate(prompt4video.prompts):
             video_path = f"{PATHS['GENERATED_VIDEOS_DIR']}/{prompt.start_time}_{prompt.duration}.mp4"
-            task_id = t2v_api_client.submit_video_generation(
-                prompt=prompt.prompt,
-                sample_steps=50,
-                fps=G_VIDEO_FPS,
-                num_frames=prompt.duration * G_VIDEO_FPS + 1,
-            )
-            if task_id:
-                task_map[task_id] = {
-                    "video_path": video_path,
-                    "start_time": prompt.start_time,
-                    "duration": prompt.duration
-                }
-            submission_progress.update()
-            time.sleep(0.5)
-        submission_progress.finish()
-
-        # Step 6: Monitor and download videos
-        terminal.print_status("Step 6/7: Monitoring video generation", "PROCESSING")
-        download_progress = terminal.ProgressBar(len(task_map), "Downloading videos")
-        for task_id, info in task_map.items():
-            spinner = terminal.SpinnerThread(f"Generating video ({download_progress.current + 1}/{len(task_map)})...")
+            
+            spinner = terminal.SpinnerThread(f"Generating video {i+1}/{len(prompt4video.prompts)}: {prompt.prompt[:30]}...")
             spinner.start()
-            video_filename = t2v_api_client.monitor_task(task_id)
+            
+            # Generate video with ComfyUI
+            generated_video_path = comfy_api_client.generate_video(
+                width=720,
+                height=720,
+                num_frames=prompt.duration * G_VIDEO_FPS + 1,
+                positive_prompt=prompt.prompt,
+                output_path=video_path
+            )
+            
             spinner.stop()
             
-            if not video_filename:
-                error_msg = f"Failed to generate video for task {task_id}"
+            if not generated_video_path:
+                error_msg = f"Failed to generate video for prompt: {prompt.prompt}"
                 terminal.print_status(error_msg, "ERROR")
                 video_manager.fail_processing_step(video_id, "video_generation", error_msg)
                 raise Exception(error_msg)
             
-            t2v_api_client.download_video(video_filename, output_path=info["video_path"])
             video_list.append(Video(
-                path=info["video_path"],
-                start_time=info["start_time"],
-                duration=info["duration"]
+                path=generated_video_path,
+                start_time=prompt.start_time,
+                duration=prompt.duration
             ))
-            download_progress.update()
-        download_progress.finish()
+            generation_progress.update()
+        generation_progress.finish()
 
-        # Step 7: Final video assembly
-        terminal.print_status("Step 7/7: Assembling final video", "PROCESSING")
+        # Step 6: Final video assembly
+        terminal.print_status("Step 6/6: Assembling final video", "PROCESSING")
         
         spinner = terminal.SpinnerThread("Combining videos...")
         spinner.start()
@@ -301,18 +293,6 @@ def main():
     terminal.print_separator("G-MAKER VIDEO GENERATOR")
     terminal.print_status("Initializing system...", "PROCESSING")
 
-
-    # if not t2v_api_client.check_health():
-    #     terminal.print_status("T2V API is not healthy. Exiting...", "ERROR")
-    #     return
-    # terminal.print_status("T2V API is healthy", "SUCCESS")
-
-    # # init
-    # terminal.print_status("Cleaning up temporary files...", "PROCESSING")
-    # init()
-    # t2v_api_client.clean_queue()
-    # t2v_api_client.clean_all_video()
-    # terminal.print_status("Cleanup completed", "SUCCESS")
 
     # Ensure directories exist
     for dir_name, dir_path in [

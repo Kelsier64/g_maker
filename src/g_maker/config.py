@@ -18,4 +18,6 @@ PATHS = {
     "CLOSE_JPG": "./static/close.jpg",
     "OPEN_JPG": "./static/open.jpg",
     "CONFIG": "./config",
+    "COMFY_ADDRESS": "127.0.0.1:8188",
+    "WORJFLOW_PATH": "./static/kj720p.json",
 }
