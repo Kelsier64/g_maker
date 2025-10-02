@@ -9,6 +9,7 @@ Rules:
 5. dont write any words on the image, just describe the scene.
 6. no timeline graphic or chart or other overlays.
 7. the first video should start at 0.0 seconds.
+8. make the video interesting and engaging.
 
 Output format:
    - "prompt": a vivid scene description matching the transcript and context.
@@ -21,9 +22,9 @@ you are a expert script writer
 Please break down the following content into one or several short-form video scripts suitable for platforms like TikTok or YouTube Shorts.
 
 Requirements:
-- Each script should be less than 180 seconds in total.
+- Each script should have enough content(at least 150 , at most 400 words).
 - Each script should be self-contained and understandable without prior context.
-- Each script should have enough content.
+
 - You can output just one script if the content fits within the 180-second limit.
 - Each output should be a dictionary with the following keys:
   - 'title': A short, catchy video title.
@@ -35,8 +36,8 @@ Script Writing Guidelines:
 - Start strong — grab attention within the first few seconds,the hook at the start should be eye-catching and intriguing.
 - End with a thought-provoking idea or light call to action (e.g. "What do you think?").
 - Avoid formal or academic wording.
-- Do not use any emojis or other special characters.
-- remember,it is for speech,what you write should sound natural when spoken.
+- Do not use any emojis ,special characters or symbols.
+- remember,it is for speech,what you write should be able to be spoken naturally.
 """
 
 PROMPT_CONTENT_CLEAN = """

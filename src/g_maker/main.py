@@ -111,7 +111,7 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
         prompt4video = ai_api_clients.gpt_request(msg,PromptList)
         terminal.print_status(f"Generated {len(prompt4video.prompts)} video prompts", "SUCCESS")
         for p in prompt4video.prompts:
-            print(f"\033[90m{p.start_time}-{p.start_time+p.duration}s] {p.prompt}\033[0m")  # Show preview in gray
+            print(f"\033[90m[{p.start_time}-{p.start_time+p.duration}s] {p.prompt}\033[0m")  # Show preview in gray
 
 
         # Step 5: Generate videos using ComfyUI
@@ -119,7 +119,7 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
         video_list: list[Video] = []
         
         # Generate videos synchronously with ComfyUI
-        generation_progress = terminal.ProgressBar(len(prompt4video.prompts), "Generating videos")
+
         for i, prompt in enumerate(prompt4video.prompts):
             video_path = f"{PATHS['GENERATED_VIDEOS_DIR']}/{prompt.start_time}_{prompt.duration}.mp4"
             
@@ -148,9 +148,8 @@ def video_pipeline(script, output_path, title="Generated Video", auto_upload=Non
                 start_time=prompt.start_time,
                 duration=prompt.duration
             ))
-            generation_progress.update()
-        generation_progress.finish()
 
+            
         # Step 6: Final video assembly
         terminal.print_status("Step 6/6: Assembling final video", "PROCESSING")
         
@@ -431,18 +430,14 @@ def main():
                 terminal.print_status("Invalid choice, please try again.", "WARNING")
 
         # Process URLs
-        overall_progress = terminal.ProgressBar(len(urls), "Overall progress")
         for idx, url in enumerate(urls):
             try:
                 terminal.print_separator(f"Processing URL {idx + 1}/{len(urls)}")
                 terminal.print_status(f"URL: {url}", "INFO")
                 main_pipeline(url)
-                overall_progress.update()
             except Exception as e:
                 terminal.print_status(f"Error processing {url}: {e}", "ERROR")
-                overall_progress.update()
 
-        overall_progress.finish()
         terminal.print_separator("BATCH COMPLETE")
         terminal.print_status("All URLs processed successfully!", "SUCCESS")
 
