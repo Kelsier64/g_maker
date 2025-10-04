@@ -3,11 +3,10 @@ import json
 import time
 import io
 import sys
-from g_maker.config import PATHS
+from g_maker.config import COMFY_ADDRESS,PATHS
 
 def free_memory():
-    server_address = PATHS['COMFY_ADDRESS']
-    free_api_url = f"http://{server_address}/free"
+    free_api_url = f"http://{COMFY_ADDRESS}/free"
     payload = {"unload_models": True, "free_memory": True}
     try:
         response = requests.post(free_api_url, json=payload)
@@ -19,7 +18,6 @@ def free_memory():
 
 def generate_video(width=None, height=None, num_frames=None, positive_prompt=None, negative_prompt=None, output_path=None):
 
-    server_address = PATHS['COMFY_ADDRESS']
     workflow_file_path = PATHS['WORJFLOW_PATH']
     
     with open(workflow_file_path, 'r', encoding='utf-8') as f:
@@ -54,7 +52,7 @@ def generate_video(width=None, height=None, num_frames=None, positive_prompt=Non
         else:
             print("Warning: Node 16 (WanVideoTextEncode) not found in workflow")
 
-    prompt_api_url = f"http://{server_address}/prompt"
+    prompt_api_url = f"http://{COMFY_ADDRESS}/prompt"
 
     payload = {
         "prompt": workflow_data, 
@@ -71,7 +69,7 @@ def generate_video(width=None, height=None, num_frames=None, positive_prompt=Non
         sys.exit(1)
 
 
-    history_api_url = f"http://{server_address}/history"
+    history_api_url = f"http://{COMFY_ADDRESS}/history"
 
 
     # print("waiting...", end='')
@@ -89,7 +87,7 @@ def generate_video(width=None, height=None, num_frames=None, positive_prompt=Non
                 if 'gifs' in node_output:
                     for gif_info in node_output['gifs']:
                         gif_filename = gif_info['filename']
-                        gif_url = f"http://{server_address}/view?filename={gif_filename}&subfolder={gif_info.get('subfolder', '')}&type={gif_info.get('type', 'output')}"
+                        gif_url = f"http://{COMFY_ADDRESS}/view?filename={gif_filename}&subfolder={gif_info.get('subfolder', '')}&type={gif_info.get('type', 'output')}"
                         gif_response = requests.get(gif_url)
                         # Save video to local file
                         if output_path is None:

@@ -1,15 +1,18 @@
 PROMPT_GENERATE_VIDEO = """
 You are given a transcript with timestamps.
 Your task: generate a list of video generation prompts for a text-to-video system.
-Rules:
-1. Only create a prompt when there is a **significant scene or visual change** — NOT for every dialogue line.
-2. Ensure prompts are **aligned with transcript timings** and only capture **meaningful visual transitions**.
-3. Videos can be independent segments, but if the interval between videos is very small, they can be concatenated together.
-4. dont make another video while the previous one is in duration.
-5. dont write any words on the image, just describe the scene.
-6. no timeline graphic or chart or other overlays.
-7. the first video should start at 0.0 seconds.
-8. make the video interesting and engaging.
+About videos:
+- Only create a prompt when there is a **significant scene or visual change** — NOT for every dialogue line.
+- Ensure prompts are **aligned with transcript timings** and only capture **meaningful visual transitions**.
+- dont write any words on the image, just describe the scene.
+- no timeline graphic or chart or other overlays.
+- make the video interesting and engaging.
+- dont use uncommon words, use simple and easy to understand words.
+
+About time:
+- Videos can be independent segments, but if the interval between videos is very small, they can be concatenated together.
+- dont make another video while the previous one is in duration.
+- the first video should start at 0.0 seconds.
 
 Output format:
    - "prompt": a vivid scene description matching the transcript and context.
