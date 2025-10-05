@@ -1,4 +1,3 @@
-import os
 import sys
 import time
 import threading
@@ -82,46 +81,28 @@ class SpinnerThread:
         self.message = message
         self.running = False
         self.thread = None
-        self.is_interactive = sys.stdout.isatty() and os.getenv('TERM') != 'dumb'
         
     def start(self):
-        # Always show start message
-        print(f"\033[36m⏳ {self.message}\033[0m")
-        
-        if not self.is_interactive:
-            return
-            
         self.running = True
         self.thread = threading.Thread(target=self._spin)
         self.thread.daemon = True
         self.thread.start()
         
     def stop(self):
-        if not self.is_interactive:
-            return
-            
         self.running = False
         if self.thread:
             self.thread.join()
-        # Clear the spinner line and move to next line
         sys.stdout.write(f"\r{' ' * (len(self.message) + 10)}\r")
         sys.stdout.flush()
         
     def _spin(self):
-        if not self.is_interactive:
-            return
-            
         spinner_chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
         i = 0
         while self.running:
-            try:
-                sys.stdout.write(f"\r\033[36m{spinner_chars[i]} {self.message}\033[0m")
-                sys.stdout.flush()
-                time.sleep(0.1)
-                i = (i + 1) % len(spinner_chars)
-            except (BrokenPipeError, OSError):
-                # Terminal was closed or output was redirected
-                break
+            sys.stdout.write(f"\r\033[36m{spinner_chars[i]} {self.message}\033[0m")
+            sys.stdout.flush()
+            time.sleep(0.1)
+            i = (i + 1) % len(spinner_chars)
 
 def get_user_input(prompt, default=None, required=True):
     """Get user input with optional default value."""

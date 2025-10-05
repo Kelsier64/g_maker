@@ -44,10 +44,7 @@ def download_yt(url, output_path, format_type="mp3"):
         # Completely suppress all yt-dlp output including warnings
         with redirect_stderr(StringIO()), redirect_stdout(StringIO()):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Suppress all possible output methods
-                ydl.report_warning = lambda *a, **kw: None
-                ydl.report_error = lambda *a, **kw: None
-                ydl.to_screen = lambda *a, **kw: None
+
                 info = ydl.extract_info(url, download=True)
 
 
