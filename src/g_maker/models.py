@@ -22,6 +22,9 @@ class Script(BaseModel):
 class ScriptList(BaseModel):
     scripts: list[Script]
 
+class ContentList(BaseModel):
+    contents: list[str]
+
 # Database-aware models
 class VideoRecord(BaseModel):
     """Model for video records stored in database."""

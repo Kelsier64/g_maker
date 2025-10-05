@@ -18,7 +18,7 @@ def free_memory():
 
 def generate_video(width=None, height=None, num_frames=None, positive_prompt=None, negative_prompt=None, output_path=None):
 
-    workflow_file_path = PATHS['WORJFLOW_PATH']
+    workflow_file_path = PATHS['WORKFLOW_PATH']
     
     with open(workflow_file_path, 'r', encoding='utf-8') as f:
         workflow_data = json.load(f)
