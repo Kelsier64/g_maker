@@ -95,7 +95,6 @@ def generate_video(width=None, height=None, num_frames=None, positive_prompt=Non
                         with open(output_path, 'wb') as f:
                             f.write(gif_response.content)
                         # Only save the first gif and return its path
-                        free_memory()
                         return output_path
             # If prompt_id found but no gifs yet, keep waiting
 
