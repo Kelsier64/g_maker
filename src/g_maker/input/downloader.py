@@ -1,5 +1,8 @@
 import yt_dlp
 import os
+import sys
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 
 def download_yt(url, output_path, format_type="mp3"):
     """
@@ -38,8 +41,12 @@ def download_yt(url, output_path, format_type="mp3"):
         }
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
+        # Completely suppress all yt-dlp output including warnings
+        with redirect_stderr(StringIO()), redirect_stdout(StringIO()):
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+
+                info = ydl.extract_info(url, download=True)
+
 
         # Determine expected final path
         if format_type == "mp3":

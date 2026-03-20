@@ -7,7 +7,7 @@ About videos:
 - dont write any words on the image, just describe the scene.
 - no timeline graphic or chart or other overlays.
 - make the video interesting and engaging.
-- dont use uncommon words, use simple and easy to understand words.
+- the first video should be impactful to grab attention.
 
 About time:
 - Videos can be independent segments, but if the interval between videos is very small, they can be concatenated together.
@@ -20,18 +20,19 @@ Output format:
    - "duration": int, duration of the scene in seconds.(max:8.0)
 """
 
-PROMPT_SHORT_VIDEO = """
-you are a expert script writer
-Please break down the following content into one or several short-form video scripts suitable for platforms like TikTok or YouTube Shorts.
+BREAK_DOWN_PROMPT = """
+You are a expert script writer
+Please break down the following content into one or several self-contained content suitable for video creation.
 
 Requirements:
-- Each script should have enough content(at least 150 , at most 400 words).
-- Each script should be self-contained and understandable without prior context.
+- Each content should have enough content(at least 150 , at most 500 words).
+- Each content should be self-contained and understandable without prior context.
+- You can output just one content if the content fits within the limit.
+"""
 
-- You can output just one script if the content fits within the 180-second limit.
-- Each output should be a dictionary with the following keys:
-  - 'title': A short, catchy video title.
-  - 'script': The full narration for the video, written in a natural, spoken tone.
+PROMPT_SHORT_VIDEO = """
+you are a expert script writer
+Please write a short-form video script based on the following content, suitable for platforms like TikTok or YouTube Shorts.
 
 Script Writing Guidelines:
 - The tone should be conversational, energetic, and easy to follow.
@@ -41,6 +42,7 @@ Script Writing Guidelines:
 - Avoid formal or academic wording.
 - Do not use any emojis ,special characters or symbols.
 - remember,it is for speech,what you write should be able to be spoken naturally.
+- make a attractive title for the video.
 """
 
 PROMPT_CONTENT_CLEAN = """
@@ -52,4 +54,31 @@ You are a video script cleaning assistant. Your task is to refine a transcript b
 - Keep the original wording and tone as much as possible, with minor edits for clarity.
 - Output a cleaned and concise version of the script that still feels authentic and natural.
 Return only the cleaned script, no additional commentary.
+"""
+
+PROMPT_ENHANCE = """
+You are an expert Prompt Engineer and Cinematic Director for advanced Text-to-Video AI models (such as Sora, Gen-4, or Veo). Your task is to craft a single, highly detailed video prompt that maximizes cinematic quality, motion, and visual richness.
+
+**Prompt Formula:**  
+Prompt = Subject Description + Scene Description + Motion Description + Aesthetic Control + Stylization
+
+- Subject Description: Clearly describe the appearance of the main character or object with vivid adjectives.
+- Scene Description: Detail the environment and context.
+- Motion Description: Specify movement characteristics (speed, style, effect).
+- Aesthetic Control: Include lighting, framing, camera angle, lens, and movement.
+- Stylization: State the visual style 
+(e.g., cyberpunk, watercolor, cinematic, Felt Style, 3D Cartoon Style,Pixel Art Style,Puppet Animation,3D Game Scene,Claymation Style,2D Anime Style,Watercolor Painting,Black And White Animation Segment,Oil Painting Style).
+
+
+**Guidelines:**
+- Focus on specific, physical motion using vivid verbs and adverbs.
+- Use professional film and photography terminology (e.g., "wide-angle lens," "soft focus," "golden hour").
+- Only describe desired elements—avoid negative phrasing.
+- The prompt must describe one continuous shot, not multiple scenes.
+- Keep the prompt between 40 and 80 words.
+
+Generate the prompt in this structured format, using clear, engaging, and cinematic language.
+
+**Output:**
+Return only the prompt, no additional commentary.
 """

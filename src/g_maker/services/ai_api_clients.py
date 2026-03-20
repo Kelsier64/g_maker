@@ -242,8 +242,6 @@ def tts(text, output_path="./output.mp3"):
 
 def gpt_request(messages, text_format=None):
     
-    spinner = SpinnerThread("Processing with AI...")
-    spinner.start()
     
     try:
         if text_format is not None:
@@ -252,18 +250,15 @@ def gpt_request(messages, text_format=None):
                 input=messages,
                 text_format=text_format,
             )
-            spinner.stop()
-            print_status("AI processing completed (structured output)", "SUCCESS")
+            
             return response.output_parsed
         else:
             response = client.responses.parse(
                 model="o4-mini",
                 input=messages,
             )
-            spinner.stop()
-            print_status("AI processing completed", "SUCCESS")
+            
             return response.output_text
     except Exception as e:
-        spinner.stop()
         print_status(f"AI processing failed: {e}", "ERROR")
         return "error"

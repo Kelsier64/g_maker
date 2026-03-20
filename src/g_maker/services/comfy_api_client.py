@@ -18,7 +18,7 @@ def free_memory():
 
 def generate_video(width=None, height=None, num_frames=None, positive_prompt=None, negative_prompt=None, output_path=None):
 
-    workflow_file_path = PATHS['WORJFLOW_PATH']
+    workflow_file_path = PATHS['WORKFLOW_PATH']
     
     with open(workflow_file_path, 'r', encoding='utf-8') as f:
         workflow_data = json.load(f)
@@ -95,7 +95,6 @@ def generate_video(width=None, height=None, num_frames=None, positive_prompt=Non
                         with open(output_path, 'wb') as f:
                             f.write(gif_response.content)
                         # Only save the first gif and return its path
-                        free_memory()
                         return output_path
             # If prompt_id found but no gifs yet, keep waiting
 
